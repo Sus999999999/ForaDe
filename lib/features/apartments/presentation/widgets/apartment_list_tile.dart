@@ -3,16 +3,20 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../domain/models/apartment.dart';
+import 'apartment_image.dart';
 
+/// Fila compacta (listas de gestión: Mis departamentos, Administración).
 class ApartmentListTile extends StatelessWidget {
   final Apartment apartment;
   final VoidCallback onTap;
   final Widget? trailing;
+  final String? extraLine;
   const ApartmentListTile({
     super.key,
     required this.apartment,
     required this.onTap,
     this.trailing,
+    this.extraLine,
   });
 
   @override
@@ -20,17 +24,17 @@ class ApartmentListTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Row(
           children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceSoft,
-                borderRadius: BorderRadius.circular(10),
+            SizedBox(
+              width: 72,
+              height: 72,
+              child: ApartmentImage(
+                seed: apartment.id,
+                iconSize: 28,
+                radius: 4,
               ),
-              child: const Icon(Icons.image_outlined, color: AppColors.muted),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -53,17 +57,27 @@ class ApartmentListTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style:
-                        const TextStyle(fontSize: 12, color: AppColors.muted),
+                        const TextStyle(fontSize: 13, color: AppColors.muted),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${formatPrice(apartment.price)} /mes',
+                    '${formatPrice(apartment.price)} / mes',
                     style: const TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.blue,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.text,
                     ),
                   ),
+                  if (extraLine != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      extraLine!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppColors.muted),
+                    ),
+                  ],
                 ],
               ),
             ),

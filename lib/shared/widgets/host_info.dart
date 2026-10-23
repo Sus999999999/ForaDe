@@ -17,12 +17,16 @@ class HostInfo extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const CircleAvatar(
-          radius: 20,
-          backgroundColor: AppColors.muted,
-          child: Icon(Icons.person, color: Colors.white),
+        // Círculo vacío (espacio de la foto de perfil).
+        Container(
+          width: 54,
+          height: 54,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.border, width: 1.4),
+          ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -30,13 +34,15 @@ class HostInfo extends StatelessWidget {
               Text(
                 '$prefix$name',
                 style: const TextStyle(
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
                   color: AppColors.text,
                 ),
               ),
+              const SizedBox(height: 2),
               Text(
                 subtitle,
-                style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                style: const TextStyle(color: AppColors.muted, fontSize: 13),
               ),
             ],
           ),

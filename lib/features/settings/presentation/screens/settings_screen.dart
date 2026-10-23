@@ -1,38 +1,65 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/routes/app_routes.dart';
 import '../../../../core/state/app_scope.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/snackbar.dart';
+import '../../../../shared/widgets/confirm_dialog.dart';
+import '../../../../shared/widgets/menu_row_tile.dart';
+import '../../../../shared/widgets/title_app_bar.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
-  Future<void> _confirmClearFavorites(BuildContext context) async {
+  Future<void> _clearFavorites(BuildContext context) async {
     final state = AppScope.read(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Quitar favoritos'),
-        content: const Text('¿Quieres quitar todos tus departamentos favoritos?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child:
-                const Text('Quitar', style: TextStyle(color: AppColors.orange)),
-          ),
-        ],
-      ),
+    final ok = await confirmDialog(
+      context,
+      title: 'Eliminar favoritos',
+      message: '¿Quieres quitar todos tus departamentos favoritos?',
+      confirmLabel: 'Eliminar',
     );
-    if (ok == true) {
-      state.clearFavorites();
-      if (context.mounted) {
-        showAppSnackBar(context, 'Favoritos eliminados');
-      }
-    }
+    if (!ok || !context.mounted) return;
+    state.clearFavorites();
+    showAppSnackBar(context, 'Favoritos eliminados');
+  }
+
+  void _logout(BuildContext context) {
+    final navigator = Navigator.of(context);
+    final state = AppScope.read(context);
+    navigator.pushNamedAndRemoveUntil(AppRoutes.roleSelection, (_) => false);
+    state.logout();
+  }
+
+  Future<void> _deleteAccount(BuildContext context) async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final state = AppScope.read(context);
+
+    final count = state.myApartments.length;
+    final extra = count > 0
+        ? ' También se eliminarán tus $count departamento${count == 1 ? '' : 's'}.'
+        : '';
+
+    final ok = await confirmDialog(
+      context,
+      title: 'Eliminar cuenta',
+      message:
+          'Se eliminará tu cuenta y tus datos.$extra Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar',
+    );
+    if (!ok) return;
+
+    navigator.pushNamedAndRemoveUntil(AppRoutes.roleSelection, (_) => false);
+    state.deleteCurrentAccount();
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Tu cuenta fue eliminada'),
+        ),
+      );
   }
 
   @override
@@ -40,42 +67,29 @@ class SettingsScreen extends StatelessWidget {
     final state = AppScope.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: const Text(
-          'Configuración',
-          style: TextStyle(
-            color: AppColors.text,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-        centerTitle: true,
-      ),
+      appBar: const TitleAppBar(title: 'Configuración'),
       body: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         children: [
-          SwitchListTile(
-            title: const Text('Notificaciones'),
-            subtitle: const Text('Avisos de mensajes y novedades'),
-            value: state.notificationsEnabled,
-            onChanged: state.setNotificationsEnabled,
+          if (state.canFavorite)
+            MenuRowTile(
+              icon: Icons.favorite_border,
+              label: 'Eliminar favoritos',
+              showChevron: false,
+              onTap: () => _clearFavorites(context),
+            ),
+          MenuRowTile(
+            icon: Icons.logout,
+            label: 'Cerrar sesión',
+            showChevron: false,
+            onTap: () => _logout(context),
           ),
-          const Divider(height: 1, color: AppColors.divider),
-          SwitchListTile(
-            title: const Text('Mostrar solo disponibles'),
-            subtitle: const Text('Oculta los departamentos no disponibles en la búsqueda'),
-            value: state.onlyAvailable,
-            onChanged: state.setOnlyAvailable,
-          ),
-          const Divider(height: 1, color: AppColors.divider),
-          ListTile(
-            leading:
-                const Icon(Icons.favorite_border, color: AppColors.muted),
-            title: const Text('Quitar todos los favoritos'),
-            onTap: () => _confirmClearFavorites(context),
+          MenuRowTile(
+            icon: Icons.delete_forever_outlined,
+            label: 'Eliminar cuenta',
+            color: AppColors.orange,
+            showChevron: false,
+            onTap: () => _deleteAccount(context),
           ),
         ],
       ),

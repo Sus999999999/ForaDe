@@ -2,30 +2,29 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 
+class ProfileStat {
+  final String value;
+  final String label;
+  const ProfileStat(this.value, this.label);
+}
+
 class ProfileStatsCard extends StatelessWidget {
-  final int published;
-  final int favorites;
-  const ProfileStatsCard({
-    super.key,
-    required this.published,
-    required this.favorites,
-  });
+  final List<ProfileStat> stats;
+  const ProfileStatsCard({super.key, required this.stats});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _Stat(value: '$published', label: 'PUBLICADOS'),
-          Container(height: 25, width: 1, color: AppColors.divider),
-          _Stat(value: '$favorites', label: 'FAVORITOS'),
+          for (final s in stats) Expanded(child: _Stat(stat: s)),
         ],
       ),
     );
@@ -33,25 +32,31 @@ class ProfileStatsCard extends StatelessWidget {
 }
 
 class _Stat extends StatelessWidget {
-  final String value;
-  final String label;
-  const _Stat({required this.value, required this.label});
+  final ProfileStat stat;
+  const _Stat({required this.stat});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         Text(
-          value,
+          stat.value,
           style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: AppColors.text,
+            fontFamily: AppColors.serif,
+            fontSize: 28,
+            fontWeight: FontWeight.w700,
+            color: AppColors.navy,
           ),
         ),
+        const SizedBox(height: 4),
         Text(
-          label,
-          style: const TextStyle(color: AppColors.muted, fontSize: 10),
+          stat.label,
+          style: const TextStyle(
+            color: AppColors.muted,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.8,
+          ),
         ),
       ],
     );

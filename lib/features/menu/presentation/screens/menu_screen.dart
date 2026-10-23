@@ -1,57 +1,56 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/routes/app_routes.dart';
+import '../../../../core/state/app_scope.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/menu_item_data.dart';
+import '../../domain/menu_items.dart';
 import '../widgets/menu_tile.dart';
 import '../widgets/profile_header.dart';
 
+/// Menú lateral: panel blanco (80 %) + franja azul oscuro a la derecha (20 %)
+/// que cierra el menú al tocarla.
 class MenuScreen extends StatelessWidget {
   const MenuScreen({super.key});
 
-  /// Cierra el menú y, si hay ruta, navega a ella.
-  void _go(BuildContext context, String? route) {
+  void _onItemTap(BuildContext context, MenuItemData item) {
     final navigator = Navigator.of(context);
     navigator.pop();
-    if (route != null) navigator.pushNamed(route);
+    // "Inicio" no tiene ruta: solo cierra el menú y deja ver el mapa.
+    if (item.route != null) navigator.pushNamed(item.route!);
   }
 
   @override
   Widget build(BuildContext context) {
-    const items = <MenuItemData>[
-      MenuItemData('Inicio', AppColors.blue),
-      MenuItemData('Favoritos', AppColors.text, route: AppRoutes.favorites),
-      MenuItemData('Mis departamentos', AppColors.text,
-          route: AppRoutes.myApartments),
-      MenuItemData('Agregar departamento', AppColors.orange,
-          route: AppRoutes.addApartment),
-      MenuItemData('Configuración', AppColors.text,
-          route: AppRoutes.settings),
-      MenuItemData('Mi perfil', AppColors.text, route: AppRoutes.profile),
-    ];
+    final items = menuItemsFor(AppScope.of(context).role);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Row(
         children: [
           Expanded(
-            flex: 76,
+            flex: 80,
             child: Container(
-              color: AppColors.menuBg,
+              color: Colors.white,
               child: SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 24, 0, 0),
+                  padding: const EdgeInsets.fromLTRB(28, 28, 28, 0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const ProfileHeader(),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 28),
                       const Divider(height: 1, color: AppColors.divider),
-                      const SizedBox(height: 8),
-                      ...items.map(
-                        (e) => MenuTile(
-                          item: e,
-                          onTap: () => _go(context, e.route),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              for (final item in items)
+                                MenuTile(
+                                  item: item,
+                                  onTap: () => _onItemTap(context, item),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -61,10 +60,10 @@ class MenuScreen extends StatelessWidget {
             ),
           ),
           Expanded(
-            flex: 24,
+            flex: 20,
             child: GestureDetector(
               onTap: () => Navigator.of(context).pop(),
-              child: Container(color: AppColors.navy),
+              child: Container(color: AppColors.menuStrip),
             ),
           ),
         ],

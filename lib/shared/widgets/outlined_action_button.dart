@@ -5,27 +5,37 @@ import '../../core/theme/app_colors.dart';
 class OutlinedActionButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
-  const OutlinedActionButton({super.key, required this.label, this.onPressed});
+  final bool expand;
+  final double height;
+
+  const OutlinedActionButton({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.expand = true,
+    this.height = 58,
+  });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: double.infinity,
-      height: 50,
+      width: expand ? double.infinity : null,
+      height: height,
       child: OutlinedButton(
         style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: AppColors.orange),
+          side: const BorderSide(color: AppColors.blue, width: 1.6),
+          padding: const EdgeInsets.symmetric(horizontal: 22),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
         onPressed: onPressed,
         child: Text(
           label,
           style: const TextStyle(
-            fontSize: 16,
-            color: AppColors.orange,
-            fontWeight: FontWeight.bold,
+            fontSize: 15,
+            color: AppColors.blue,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),

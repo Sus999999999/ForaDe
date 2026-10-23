@@ -29,7 +29,7 @@ class _ForadeAppState extends State<ForadeApp> {
         title: 'Forade',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
-        initialRoute: AppRoutes.home,
+        initialRoute: AppRoutes.splash,
         onGenerateRoute: AppRoutes.onGenerateRoute,
       ),
     );

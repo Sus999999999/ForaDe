@@ -13,16 +13,16 @@ class MenuTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        height: 46,
+        height: 61,
         alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.only(left: 9),
+        padding: const EdgeInsets.only(left: 11),
         decoration: const BoxDecoration(
           border: Border(bottom: BorderSide(color: AppColors.divider)),
         ),
         child: Text(
           item.label,
           style: TextStyle(
-            fontSize: 15,
+            fontSize: 17,
             fontWeight: FontWeight.w600,
             color: item.color,
           ),

@@ -3,6 +3,11 @@ description: "A new Flutter project."
 publish_to: 'none'
 version: 0.1.0+1
 
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+
 environment:
   sdk: ^3.13.2
 
@@ -15,5 +20,3 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 
-flutter:
-  uses-material-design: true

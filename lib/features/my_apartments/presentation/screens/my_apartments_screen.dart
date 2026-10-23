@@ -4,38 +4,30 @@ import '../../../../core/routes/app_routes.dart';
 import '../../../../core/state/app_scope.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/snackbar.dart';
+import '../../../../shared/widgets/confirm_dialog.dart';
 import '../../../../shared/widgets/empty_state.dart';
-import '../../../../shared/widgets/outlined_action_button.dart';
+import '../../../../shared/widgets/primary_button.dart';
+import '../../../../shared/widgets/title_app_bar.dart';
 import '../../../apartments/domain/models/apartment.dart';
 import '../../../apartments/presentation/widgets/apartment_list_tile.dart';
 
 class MyApartmentsScreen extends StatelessWidget {
   const MyApartmentsScreen({super.key});
 
-  Future<void> _confirmDelete(BuildContext context, Apartment a) async {
+  void _add(BuildContext context) =>
+      Navigator.of(context).pushNamed(AppRoutes.addApartment);
+
+  Future<void> _delete(BuildContext context, Apartment a) async {
     final state = AppScope.read(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Eliminar departamento'),
-        content: Text('¿Seguro que quieres eliminar "${a.title}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Eliminar',
-                style: TextStyle(color: AppColors.orange)),
-          ),
-        ],
-      ),
+    final ok = await confirmDialog(
+      context,
+      title: 'Eliminar departamento',
+      message: '¿Seguro que quieres eliminar "${a.title}"?',
+      confirmLabel: 'Eliminar',
     );
-    if (ok == true) {
-      state.removeApartment(a.id);
-      if (context.mounted) showAppSnackBar(context, 'Departamento eliminado');
-    }
+    if (!ok || !context.mounted) return;
+    state.removeApartment(a.id);
+    showAppSnackBar(context, 'Departamento eliminado');
   }
 
   @override
@@ -43,50 +35,54 @@ class MyApartmentsScreen extends StatelessWidget {
     final mine = AppScope.of(context).myApartments;
 
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: const Text(
-          'Mis departamentos',
-          style: TextStyle(
-            color: AppColors.text,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
+      appBar: TitleAppBar(
+        title: 'Mis departamentos',
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(
+              child: PrimaryButton(
+                label: '+ Agregar',
+                expand: false,
+                height: 40,
+                onPressed: () => _add(context),
+              ),
+            ),
           ),
-        ),
-        centerTitle: true,
+        ],
       ),
       body: mine.isEmpty
           ? EmptyState(
               icon: Icons.apartment_outlined,
               title: 'No has publicado departamentos',
               message: 'Publica el primero y aparecerá aquí.',
-              action: SizedBox(
-                width: 220,
-                child: OutlinedActionButton(
-                  label: 'Agregar departamento',
-                  onPressed: () => Navigator.of(context)
-                      .pushNamed(AppRoutes.addApartment),
-                ),
+              action: PrimaryButton(
+                label: 'Agregar departamento',
+                expand: false,
+                onPressed: () => _add(context),
               ),
             )
           : ListView.separated(
+              padding: const EdgeInsets.only(bottom: 24),
               itemCount: mine.length,
-              separatorBuilder: (_, __) =>
-                  const Divider(height: 1, color: AppColors.divider),
+              separatorBuilder: (_, __) => const Divider(
+                  height: 1,
+                  indent: 20,
+                  endIndent: 20,
+                  color: AppColors.divider),
               itemBuilder: (_, i) {
                 final a = mine[i];
                 return ApartmentListTile(
                   apartment: a,
-                  onTap: () => Navigator.of(context)
-                      .pushNamed(AppRoutes.apartmentDetail, arguments: a),
+                  onTap: () => Navigator.of(context).pushNamed(
+                    AppRoutes.apartmentDetail,
+                    arguments: a,
+                  ),
                   trailing: IconButton(
                     tooltip: 'Eliminar',
                     icon: const Icon(Icons.delete_outline,
                         color: AppColors.muted),
-                    onPressed: () => _confirmDelete(context, a),
+                    onPressed: () => _delete(context, a),
                   ),
                 );
               },

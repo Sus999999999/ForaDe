@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/state/app_scope.dart';
-import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/snackbar.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/primary_button.dart';
 import '../../../../shared/widgets/section_label.dart';
+import '../../../../shared/widgets/title_app_bar.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -40,17 +40,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  String? _requiredError(TextEditingController c) =>
-      _showErrors && c.text.trim().isEmpty ? 'Campo obligatorio' : null;
+  String? get _nameError =>
+      _showErrors && _name.text.trim().isEmpty ? 'Campo obligatorio' : null;
+
+  String? get _emailError {
+    if (!_showErrors) return null;
+    final v = _email.text.trim();
+    if (v.isEmpty) return 'Campo obligatorio';
+    if (!v.contains('@') || !v.contains('.')) return 'Correo no válido';
+    return null;
+  }
 
   void _save() {
     setState(() => _showErrors = true);
-    final filled = [_name, _email, _phone, _city]
-        .every((c) => c.text.trim().isNotEmpty);
-    if (!filled) return;
+    if (_nameError != null || _emailError != null) return;
 
     final state = AppScope.read(context);
-    state.updateProfile(state.profile.copyWith(
+    state.updateUser(state.profile.copyWith(
       name: _name.text.trim(),
       email: _email.text.trim(),
       phone: _phone.text.trim(),
@@ -58,36 +64,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     ));
 
     FocusScope.of(context).unfocus();
-    final messenger = ScaffoldMessenger.of(context);
-    Navigator.of(context).pop();
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text('Información actualizada'),
-        ),
-      );
+    popAndShowSnackBar(context, 'Información actualizada',
+        icon: Icons.check_circle);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: const Text(
-          'Editar información',
-          style: TextStyle(
-            color: AppColors.text,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-        centerTitle: true,
-      ),
+      appBar: const TitleAppBar(title: 'Editar información'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -98,7 +82,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             AppTextField(
               hint: 'Nombre completo',
               controller: _name,
-              errorText: _requiredError(_name),
+              errorText: _nameError,
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 15),
@@ -108,7 +92,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               hint: 'correo@ejemplo.com',
               controller: _email,
               keyboardType: TextInputType.emailAddress,
-              errorText: _requiredError(_email),
+              errorText: _emailError,
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 15),
@@ -118,18 +102,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               hint: '+52 55 0000 0000',
               controller: _phone,
               keyboardType: TextInputType.phone,
-              errorText: _requiredError(_phone),
-              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 15),
             const SectionLabel('CIUDAD'),
             const SizedBox(height: 8),
-            AppTextField(
-              hint: 'Ciudad de México',
-              controller: _city,
-              errorText: _requiredError(_city),
-              onChanged: (_) => setState(() {}),
-            ),
+            AppTextField(hint: 'Ciudad de México', controller: _city),
             const SizedBox(height: 25),
             PrimaryButton(label: 'Guardar cambios', onPressed: _save),
           ],
