@@ -1,6 +1,7 @@
-# forade
+# ForaDe
 
-A new Flutter project.
+Jesus Alberto Manazano Garcia <br>
+Omar Enrique Cano Gomez <br>
 
 <br><br>
 Pantalla para elegir un rol (el rol de administrador no se mostrara para el publico)
