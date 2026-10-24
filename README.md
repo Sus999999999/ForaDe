@@ -23,27 +23,43 @@ Sider con opciones <br>
 <br><br>
 
 Dashboards <br>
-El rentero puede agregar departamentos <br>
+El usuario rentero puede agregar departamentos / dashboard(barra lateral) <br>
 <img width="254" height="479" alt="image" src="https://github.com/user-attachments/assets/0720c346-48b5-42da-ae32-2cc69fe5ffe8" />
+<img width="247" height="476" alt="image" src="https://github.com/user-attachments/assets/7d6a7895-e645-43a6-b80f-f787ab96b073" />
 <br><br>
-El rentador puede contactar con el rentero <br>
+El usuario rentador puede contactar con el rentero / dashboard(barra lateral) <br>
 <img width="253" height="479" alt="image" src="https://github.com/user-attachments/assets/25202ff6-3637-4c5d-9b53-78734aecd5e2" />
+<img width="248" height="477" alt="image" src="https://github.com/user-attachments/assets/65e85312-744c-4aa6-8803-13e2f2422486" />
 <br><br>
-El administrador puede editar y borrar cualquier informacion <br>
+El administrador puede administrar cualquier informacion / dashboard(barra lateral) <br>
 <img width="252" height="473" alt="image" src="https://github.com/user-attachments/assets/79adf315-87db-4bc0-92a9-3430f65bb873" />
+<img width="248" height="479" alt="image" src="https://github.com/user-attachments/assets/f098dc8c-274d-4a43-accd-578182883480" />
 <br><br>
 
 Listas <br>
 Informacion del departamento <br>
 <img width="257" height="473" alt="image" src="https://github.com/user-attachments/assets/1505b364-e554-4d94-998d-963dfbb9827a" />
-<img width="255" height="478" alt="image" src="https://github.com/user-attachments/assets/134c35cb-855a-4a44-a436-3b396e19234c" />
+<br><br>
+Agregar departamento <br>
+<img width="250" height="473" alt="image" src="https://github.com/user-attachments/assets/00a22f21-f3ed-467d-8085-6cf82b090a38" />
 <br><br>
 
 Formularios<br>
-Mi perfil <br>
-<img width="256" height="479" alt="image" src="https://github.com/user-attachments/assets/0ab5cc1f-dbac-482c-8a65-ed2890e99a05" />
+Administrador puede administrar toda la informacion <br>
+<img width="248" height="478" alt="image" src="https://github.com/user-attachments/assets/86512073-6b7e-43d6-8596-200d3138e416" />
+<img width="249" height="476" alt="image" src="https://github.com/user-attachments/assets/e42c02ed-cd61-4ab9-8247-c3541ef3e718" />
 <br><br>
-Favoritos <br>
-<img width="256" height="479" alt="image" src="https://github.com/user-attachments/assets/10f2bb3c-70f3-4c9e-a143-3dca1ba62265" />
+Rentador agrega departamento<br>
+<img width="250" height="473" alt="image" src="https://github.com/user-attachments/assets/00a22f21-f3ed-467d-8085-6cf82b090a38" />
+<img width="240" height="473" alt="image" src="https://github.com/user-attachments/assets/dac747b6-0c09-4aab-b55d-bd9e5b4f1c26" />
+<br><br>
+Rentero contacta con rentador<br>
+<img width="248" height="479" alt="image" src="https://github.com/user-attachments/assets/0531bff4-5ae5-4f38-b6f7-40f31fbefffd" />
+<img width="247" height="473" alt="image" src="https://github.com/user-attachments/assets/d37d15e1-f8ca-46d4-a51f-ba86faeb7f8d" />
+<br><br>
 
+
+
+Evidencia Funcional <br>
+https://drive.google.com/file/d/1meZTUAdQK4rOS467MtMD-JTdi_fRk9Rs/view?usp=sharing
 
