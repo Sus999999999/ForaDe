@@ -24,7 +24,10 @@ class ProfileScreen extends StatelessWidget {
         ProfileStat('${s.favorites.length}', 'FAVORITOS'),
       ];
     }
-    return [ProfileStat('${s.favorites.length}', 'FAVORITOS')];
+    return [
+      ProfileStat('${s.myStays.length}', 'RENTAS'),
+      ProfileStat('${s.favorites.length}', 'FAVORITOS'),
+    ];
   }
 
   @override

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/routes/app_routes.dart';
 import '../../../../core/state/app_scope.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/utils/snackbar.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/host_info.dart';
 import '../../../../shared/widgets/primary_button.dart';
@@ -49,23 +51,23 @@ class _ContactScreenState extends State<ContactScreen> {
     if (_name.text.trim().isEmpty || _message.text.trim().isEmpty) return;
 
     FocusScope.of(context).unfocus();
-    final messenger = ScaffoldMessenger.of(context);
-    final host = widget.apartment.hostName;
-    Navigator.of(context).pop();
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white, size: 20),
-              const SizedBox(width: 10),
-              Expanded(child: Text('Mensaje enviado a $host')),
-            ],
-          ),
-        ),
-      );
+    final state = AppScope.read(context);
+    final chat = state.openChat(widget.apartment);
+    if (chat == null) {
+      showAppSnackBar(context, 'No puedes iniciar un chat con este rentero',
+          icon: Icons.error_outline);
+      return;
+    }
+
+    // El mensaje del formulario es el primero de la conversación.
+    final phone = _phone.text.trim();
+    final text = phone.isEmpty
+        ? _message.text.trim()
+        : '${_message.text.trim()}\n\nMi teléfono: $phone';
+    state.sendMessage(chat.id, text);
+
+    Navigator.of(context)
+        .pushReplacementNamed(AppRoutes.chat, arguments: chat.id);
   }
 
   @override
@@ -172,7 +174,7 @@ class _ContactScreenState extends State<ContactScreen> {
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 26),
-            PrimaryButton(label: 'Enviar mensaje', onPressed: _send),
+            PrimaryButton(label: 'Enviar e iniciar chat', onPressed: _send),
           ],
         ),
       ),

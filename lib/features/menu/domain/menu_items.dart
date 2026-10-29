@@ -15,6 +15,10 @@ List<MenuItemData> menuItemsFor(UserRole? role) {
       route: AppRoutes.addApartment);
   const admin =
       MenuItemData('Administración', AppColors.orange, route: AppRoutes.admin);
+  const messages =
+      MenuItemData('Mensajes', AppColors.text, route: AppRoutes.chats);
+  const stayHistory = MenuItemData('Historial de rentas', AppColors.text,
+      route: AppRoutes.stayHistory);
   const settings =
       MenuItemData('Configuración', AppColors.text, route: AppRoutes.settings);
   const profile =
@@ -26,12 +30,13 @@ List<MenuItemData> menuItemsFor(UserRole? role) {
       favorites,
       myApartments,
       addApartment,
+      messages,
       settings,
       profile,
     ];
   }
   if (role == UserRole.rentador) {
-    return const [home, favorites, settings, profile];
+    return const [home, favorites, messages, stayHistory, settings, profile];
   }
   if (role == UserRole.administrador) {
     return const [home, admin, settings, profile];

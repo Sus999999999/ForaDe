@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 import '../../features/apartments/domain/models/apartment.dart';
 import '../../features/apartments/domain/models/home_filter.dart';
 import '../../features/auth/domain/models/user_role.dart';
+import '../../features/chat/domain/models/chat_models.dart';
 import '../../features/profile/domain/models/user_profile.dart';
+import '../../features/stays/domain/models/stay.dart';
 
 /// Estado global en memoria. Se reinicia al cerrar la app.
 /// Más adelante se puede reemplazar por una base de datos / API
@@ -117,6 +119,52 @@ class AppState extends ChangeNotifier {
     ),
   ];
 
+  /// Historial de estancias (datos de ejemplo para Diego, el rentador demo).
+  late final List<Stay> _stays = _seedStays();
+
+  static List<Stay> _seedStays() {
+    final now = DateTime.now();
+    DateTime ago(int days) => now.subtract(Duration(days: days));
+    return [
+      Stay(
+        id: 'stay-seed-1',
+        renterId: 'u-diego',
+        apartmentId: 'seed-3',
+        apartmentTitle: 'Estudio Polanco',
+        location: 'Col. Polanco, CDMX',
+        hostName: 'Luis G.',
+        monthlyPrice: 15200,
+        startDate: ago(760),
+        endDate: ago(490),
+      ),
+      Stay(
+        id: 'stay-seed-2',
+        renterId: 'u-diego',
+        apartmentId: 'seed-2',
+        apartmentTitle: 'Loft Roma Norte',
+        location: 'Col. Roma Norte, CDMX',
+        hostName: 'Ana M.',
+        monthlyPrice: 12500,
+        startDate: ago(470),
+        endDate: ago(140),
+      ),
+      Stay(
+        id: 'stay-seed-3',
+        renterId: 'u-diego',
+        apartmentId: 'seed-4',
+        apartmentTitle: 'Casa Condesa',
+        location: 'Col. Condesa, CDMX',
+        hostName: 'Sofía P.',
+        monthlyPrice: 18000,
+        startDate: ago(120),
+        endDate: ago(45),
+      ),
+    ];
+  }
+
+  /// Conversaciones temporales: solo existen mientras no se finalicen.
+  final List<ChatConversation> _chats = [];
+
   /// Favoritos por usuario (userId -> ids de departamentos).
   final Map<String, Set<String>> _favoritesByUser = {};
 
@@ -135,6 +183,7 @@ class AppState extends ChangeNotifier {
   bool get canPublish => role == UserRole.rentero;
   bool get canFavorite =>
       role == UserRole.rentero || role == UserRole.rentador;
+  bool get canChat => role == UserRole.rentero || role == UserRole.rentador;
 
   /// Inicio de sesión básico (sin contraseña). La identidad de un usuario es
   /// correo + tipo de usuario: si ya existe, se reutiliza su cuenta (y sus
@@ -197,6 +246,13 @@ class AppState extends ChangeNotifier {
 
   List<UserProfile> get users => List.unmodifiable(_users);
   List<Apartment> get apartments => List.unmodifiable(_apartments);
+
+  UserProfile? userById(String id) {
+    for (final u in _users) {
+      if (u.id == id) return u;
+    }
+    return null;
+  }
 
   Apartment? apartmentById(String id) {
     for (final a in _apartments) {
@@ -321,6 +377,142 @@ class AppState extends ChangeNotifier {
   }
 
   // ------------------------------------------------------------------
+  // Historial de estancias
+  // ------------------------------------------------------------------
+  /// Estancias del usuario actual (la más reciente primero).
+  List<Stay> get myStays => staysOf(_currentUser?.id ?? '');
+
+  List<Stay> staysOf(String renterId) {
+    final list = _stays.where((s) => s.renterId == renterId).toList()
+      ..sort((a, b) => b.startDate.compareTo(a.startDate));
+    return list;
+  }
+
+  /// Estancia en curso del departamento (de cualquier rentador), si hay.
+  Stay? activeStayOf(String apartmentId) {
+    for (final s in _stays) {
+      if (s.apartmentId == apartmentId && s.isActive) return s;
+    }
+    return null;
+  }
+
+  /// El rentero registra que [renterId] empezó a rentar su departamento.
+  /// El departamento pasa a "No disponible". Devuelve false si no procede.
+  bool registerStay({required Apartment apartment, required String renterId}) {
+    final user = _currentUser;
+    final renter = userById(renterId);
+    if (user == null || !canPublish || apartment.ownerId != user.id) {
+      return false;
+    }
+    if (renter == null || renter.role != UserRole.rentador) return false;
+    if (activeStayOf(apartment.id) != null) return false;
+
+    _stays.add(Stay(
+      id: 'stay-${DateTime.now().microsecondsSinceEpoch}',
+      renterId: renterId,
+      apartmentId: apartment.id,
+      apartmentTitle: apartment.title,
+      location: apartment.location,
+      hostName: apartment.hostName,
+      monthlyPrice: apartment.price,
+      startDate: DateTime.now(),
+    ));
+    final fresh = apartmentById(apartment.id) ?? apartment;
+    updateApartment(fresh.copyWith(isAvailable: false));
+    return true;
+  }
+
+  /// El rentero da por terminada la estancia en curso del departamento.
+  /// El departamento vuelve a estar disponible.
+  bool endStay(String apartmentId) {
+    final user = _currentUser;
+    final apt = apartmentById(apartmentId);
+    final i = _stays.indexWhere((s) => s.apartmentId == apartmentId && s.isActive);
+    if (user == null || apt == null || apt.ownerId != user.id || i < 0) {
+      return false;
+    }
+    _stays[i] = _stays[i].ended(DateTime.now());
+    updateApartment(apt.copyWith(isAvailable: true));
+    return true;
+  }
+
+  // ------------------------------------------------------------------
+  // Chat temporal
+  // ------------------------------------------------------------------
+  /// Conversaciones del usuario actual (la más reciente primero).
+  List<ChatConversation> get myChats {
+    final id = _currentUser?.id;
+    if (id == null) return const [];
+    final list = _chats.where((c) => c.hasParticipant(id)).toList()
+      ..sort((a, b) => _activityOf(b).compareTo(_activityOf(a)));
+    return list;
+  }
+
+  DateTime _activityOf(ChatConversation c) =>
+      c.lastMessage?.sentAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+
+  ChatConversation? chatById(String id) {
+    for (final c in _chats) {
+      if (c.id == id) return c;
+    }
+    return null;
+  }
+
+  /// Conversación del usuario actual sobre este departamento, si existe.
+  ChatConversation? chatFor(Apartment a) {
+    final id = _currentUser?.id;
+    if (id == null) return null;
+    for (final c in _chats) {
+      if (c.apartmentId == a.id && c.renterId == id) return c;
+    }
+    return null;
+  }
+
+  /// Devuelve la conversación existente o crea una nueva con el rentero.
+  ChatConversation? openChat(Apartment a) {
+    final user = _currentUser;
+    if (user == null || !canChat || a.ownerId == user.id) return null;
+    final existing = chatFor(a);
+    if (existing != null) return existing;
+
+    final chat = ChatConversation(
+      id: 'chat-${DateTime.now().microsecondsSinceEpoch}',
+      apartmentId: a.id,
+      apartmentTitle: a.title,
+      ownerId: a.ownerId,
+      renterId: user.id,
+    );
+    _chats.add(chat);
+    notifyListeners();
+    return chat;
+  }
+
+  void sendMessage(String chatId, String text) {
+    final user = _currentUser;
+    final chat = chatById(chatId);
+    final body = text.trim();
+    if (user == null || chat == null || body.isEmpty) return;
+    if (!chat.hasParticipant(user.id)) return;
+
+    chat.messages.add(ChatMessage(
+      id: 'm-${DateTime.now().microsecondsSinceEpoch}',
+      senderId: user.id,
+      text: body,
+      sentAt: DateTime.now(),
+    ));
+    notifyListeners();
+  }
+
+  /// Finaliza la conversación: se elimina para ambas personas.
+  void endChat(String chatId) {
+    final user = _currentUser;
+    final chat = chatById(chatId);
+    if (user == null || chat == null || !chat.hasParticipant(user.id)) return;
+    _chats.remove(chat);
+    notifyListeners();
+  }
+
+  // ------------------------------------------------------------------
   // Usuarios
   // ------------------------------------------------------------------
   /// Actualiza un usuario (perfil propio o edición del administrador).
@@ -360,6 +552,8 @@ class AppState extends ChangeNotifier {
     _apartments.removeWhere((a) => a.ownerId == id);
     _users.removeWhere((u) => u.id == id);
     _favoritesByUser.remove(id);
+    _chats.removeWhere((c) => c.hasParticipant(id));
+    _stays.removeWhere((s) => s.renterId == id);
     for (final favs in _favoritesByUser.values) {
       favs.removeAll(ownedIds);
     }

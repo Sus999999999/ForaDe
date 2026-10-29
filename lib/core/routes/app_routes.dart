@@ -9,6 +9,9 @@ import '../../features/auth/domain/models/user_role.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/role_selection_screen.dart';
 import '../../features/auth/presentation/widgets/role_guard.dart';
+import '../../features/chat/presentation/screens/chat_screen.dart';
+import '../../features/chat/presentation/screens/chats_screen.dart';
+import '../../features/stays/presentation/screens/stay_history_screen.dart';
 import '../../features/admin/presentation/screens/admin_screen.dart';
 import '../../features/contact/presentation/screens/contact_screen.dart';
 import '../../features/favorites/presentation/screens/favorites_screen.dart';
@@ -42,6 +45,9 @@ class AppRoutes {
   static const String myApartments = '/my-apartments';
   static const String admin = '/admin';
   static const String profile = '/profile';
+  static const String stayHistory = '/stay-history'; // solo rentador
+  static const String chats = '/chats'; // rentero y rentador
+  static const String chat = '/chat'; // arguments: String (id de la conversación)
 
   // Administración
   static const adminEditApartment = '/admin/edit-apartment'; // Apartment
@@ -67,6 +73,21 @@ class AppRoutes {
         return page(const RoleGuard(
           allowed: {UserRole.rentero},
           child: MyApartmentsScreen(),
+        ));
+      case stayHistory:
+        return page(const RoleGuard(
+          allowed: {UserRole.rentador},
+          child: StayHistoryScreen(),
+        ));
+      case chats:
+        return page(const RoleGuard(
+          allowed: {UserRole.rentero, UserRole.rentador},
+          child: ChatsScreen(),
+        ));
+      case chat:
+        return page(RoleGuard(
+          allowed: const {UserRole.rentero, UserRole.rentador},
+          child: ChatScreen(chatId: s.arguments as String),
         ));
       case admin:
         return page(const RoleGuard(

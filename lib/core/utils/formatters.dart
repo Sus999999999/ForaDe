@@ -8,3 +8,15 @@ String formatPrice(int value) {
   }
   return '\$$buf';
 }
+
+const _months = [
+  'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+  'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+];
+
+/// DateTime(2025, 3, 5) -> "5 mar 2025"
+String formatDate(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
+
+/// DateTime -> "14:05"
+String formatTime(DateTime d) =>
+    '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';

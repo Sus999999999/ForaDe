@@ -75,6 +75,15 @@ class ApartmentDetailScreen extends StatelessWidget {
         ),
       );
     }
+    // Si ya hay una conversación con este rentero, se abre directamente.
+    final chat = state.chatFor(a);
+    if (chat != null) {
+      return PrimaryButton(
+        label: 'Abrir chat',
+        onPressed: () => Navigator.of(context)
+            .pushNamed(AppRoutes.chat, arguments: chat.id),
+      );
+    }
     return PrimaryButton(
       label: 'Contactar',
       onPressed: () => Navigator.of(context)
