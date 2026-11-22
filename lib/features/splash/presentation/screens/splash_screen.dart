@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../auth/presentation/screens/role_selection_screen.dart';
+import '../../../../core/state/app_scope.dart';
+import '../../../auth/presentation/screens/login_screen.dart';
+import '../../../dashboard/presentation/screens/dashboard_screen.dart';
 
 /// Pantalla de inicio: cabecera azul redondeada (igual que la pantalla de
 /// selección de rol), logo PNG, nombre y un indicador de carga.
@@ -41,18 +43,28 @@ class _SplashScreenState extends State<SplashScreen>
       CurvedAnimation(parent: _intro, curve: Curves.easeOutBack),
     );
 
-    // Aquí puedes cargar datos reales (sesión, preferencias, etc.)
-    // antes de navegar. Por ahora solo espera un tiempo fijo.
+    // Cargar sesión remota guardada y departamentos desde Supabase
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        AppScope.read(context).restoreSession();
+      }
+    });
+
     _timer = Timer(SplashScreen.duration, _goNext);
   }
 
   void _goNext() {
     if (!mounted) return;
+    // Con sesión activa se entra directo al Dashboard.
+    final loggedIn = AppScope.read(context).isLoggedIn;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
-        settings: const RouteSettings(name: AppRoutes.roleSelection),
+        settings: RouteSettings(
+          name: loggedIn ? AppRoutes.home : AppRoutes.login,
+        ),
         transitionDuration: const Duration(milliseconds: 450),
-        pageBuilder: (_, __, ___) => const RoleSelectionScreen(),
+        pageBuilder: (_, __, ___) =>
+            loggedIn ? const DashboardScreen() : const LoginScreen(),
         transitionsBuilder: (_, animation, __, child) =>
             FadeTransition(opacity: animation, child: child),
       ),

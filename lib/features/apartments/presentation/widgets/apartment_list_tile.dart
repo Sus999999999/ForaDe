@@ -11,12 +11,14 @@ class ApartmentListTile extends StatelessWidget {
   final VoidCallback onTap;
   final Widget? trailing;
   final String? extraLine;
+  final Widget? badge;
   const ApartmentListTile({
     super.key,
     required this.apartment,
     required this.onTap,
     this.trailing,
     this.extraLine,
+    this.badge,
   });
 
   @override
@@ -68,6 +70,10 @@ class ApartmentListTile extends StatelessWidget {
                       color: AppColors.text,
                     ),
                   ),
+                  if (badge != null) ...[
+                    const SizedBox(height: 6),
+                    Align(alignment: Alignment.centerLeft, child: badge!),
+                  ],
                   if (extraLine != null) ...[
                     const SizedBox(height: 2),
                     Text(

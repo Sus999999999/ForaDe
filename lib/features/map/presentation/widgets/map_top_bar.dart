@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../apartments/presentation/widgets/search_filter_bar.dart';
 
 /// Botón de menú (≡) y buscador "Buscar por zona o ciudad...".
 class MapTopBar extends StatelessWidget {
@@ -8,6 +9,8 @@ class MapTopBar extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
   final VoidCallback onMenu;
+  final VoidCallback onFilter;
+  final int activeFilters;
 
   const MapTopBar({
     super.key,
@@ -15,6 +18,8 @@ class MapTopBar extends StatelessWidget {
     required this.onChanged,
     required this.onClear,
     required this.onMenu,
+    required this.onFilter,
+    this.activeFilters = 0,
   });
 
   static const _radius = 14.0;
@@ -53,7 +58,7 @@ class MapTopBar extends StatelessWidget {
         Expanded(
           child: Container(
             height: 54,
-            padding: const EdgeInsets.only(left: 16, right: 6),
+            padding: const EdgeInsets.only(left: 16, right: 2),
             decoration: _box,
             child: Row(
               children: [
@@ -83,7 +88,7 @@ class MapTopBar extends StatelessWidget {
                 ValueListenableBuilder<TextEditingValue>(
                   valueListenable: controller,
                   builder: (_, value, __) {
-                    if (value.text.isEmpty) return const SizedBox(width: 10);
+                    if (value.text.isEmpty) return const SizedBox.shrink();
                     return IconButton(
                       visualDensity: VisualDensity.compact,
                       icon: const Icon(Icons.cancel,
@@ -92,6 +97,7 @@ class MapTopBar extends StatelessWidget {
                     );
                   },
                 ),
+                FilterButton(count: activeFilters, onPressed: onFilter),
               ],
             ),
           ),

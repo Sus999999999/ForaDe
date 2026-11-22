@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../auth/domain/models/user_role.dart';
 import '../../domain/models/user_profile.dart';
 
 /// Filas de contacto con borde fino, etiqueta en mayúsculas pequeñas y valor.
@@ -19,6 +20,11 @@ class ContactInfoList extends StatelessWidget {
       ),
       child: Column(
         children: [
+          _InfoTile(
+              icon: Icons.badge_outlined,
+              label: 'TIPO DE USUARIO',
+              text: profile.role.label),
+          const Divider(height: 1, color: AppColors.divider),
           _InfoTile(
               icon: Icons.phone_outlined,
               label: 'TELÉFONO',

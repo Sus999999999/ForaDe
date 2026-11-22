@@ -15,6 +15,10 @@ class AppTextField extends StatelessWidget {
   final String? errorText;
   final ValueChanged<String>? onChanged;
   final List<TextInputFormatter>? inputFormatters;
+  final bool obscureText;
+  final bool enabled;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
 
   const AppTextField({
     super.key,
@@ -27,6 +31,10 @@ class AppTextField extends StatelessWidget {
     this.errorText,
     this.onChanged,
     this.inputFormatters,
+    this.obscureText = false,
+    this.enabled = true,
+    this.textInputAction,
+    this.onSubmitted,
   });
 
   @override
@@ -51,8 +59,12 @@ class AppTextField extends StatelessWidget {
           ),
           child: TextField(
             controller: controller,
-            maxLines: maxLines,
-            minLines: minLines,
+            maxLines: obscureText ? 1 : maxLines,
+            minLines: obscureText ? 1 : minLines,
+            obscureText: obscureText,
+            enabled: enabled,
+            textInputAction: textInputAction,
+            onSubmitted: onSubmitted,
             keyboardType: keyboardType,
             onChanged: onChanged,
             inputFormatters: inputFormatters,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/routes/app_routes.dart';
 import '../../../../core/state/app_scope.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/snackbar.dart';
@@ -63,7 +64,7 @@ class _ChatScreenState extends State<ChatScreen> {
       context,
       title: 'Registrar renta',
       message:
-          '¿Registrar que $renterName rentó "${apt.title}" a partir de hoy? El departamento pasará a "No disponible" y la renta aparecerá en su historial.',
+          '¿Registrar que $renterName rentó "${apt.title}" a partir de hoy? El departamento pasará a "Ocupado" y la renta aparecerá en su historial.',
       confirmLabel: 'Registrar',
     );
     if (!ok || !mounted) return;
@@ -122,7 +123,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final activeStay = apt == null ? null : state.activeStayOf(apt.id);
     final canRegister = isOwner &&
         other?.role == UserRole.rentador &&
-        activeStay == null;
+        activeStay == null &&
+        !apt.isInactive;
     final canEndStay =
         isOwner && activeStay != null && activeStay.renterId == chat.renterId;
 
@@ -169,29 +171,45 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          Container(
-            width: double.infinity,
-            color: AppColors.surfaceSoft,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  chat.apartmentTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.text,
+          InkWell(
+            onTap: apt == null
+                ? null
+                : () => Navigator.of(context)
+                    .pushNamed(AppRoutes.apartmentDetail, arguments: apt),
+            child: Container(
+              width: double.infinity,
+              color: AppColors.surfaceSoft,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          chat.apartmentTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.text,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Chat temporal: al finalizarlo se elimina para ambos.',
+                          style:
+                              TextStyle(fontSize: 12, color: AppColors.muted),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                const Text(
-                  'Chat temporal: al finalizarlo se elimina para ambos.',
-                  style: TextStyle(fontSize: 12, color: AppColors.muted),
-                ),
-              ],
+                  if (apt != null)
+                    const Icon(Icons.chevron_right, color: AppColors.muted),
+                ],
+              ),
             ),
           ),
           Expanded(

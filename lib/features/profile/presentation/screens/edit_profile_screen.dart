@@ -6,6 +6,7 @@ import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/primary_button.dart';
 import '../../../../shared/widgets/section_label.dart';
 import '../../../../shared/widgets/title_app_bar.dart';
+import '../../../../core/theme/app_colors.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -56,12 +57,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (_nameError != null || _emailError != null) return;
 
     final state = AppScope.read(context);
-    state.updateUser(state.profile.copyWith(
+    final error = state.updateUser(state.profile.copyWith(
       name: _name.text.trim(),
       email: _email.text.trim(),
       phone: _phone.text.trim(),
       city: _city.text.trim(),
     ));
+    if (error != null) {
+      showAppSnackBar(context, error, icon: Icons.error_outline);
+      return;
+    }
 
     FocusScope.of(context).unfocus();
     popAndShowSnackBar(context, 'Información actualizada',
@@ -107,6 +112,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SectionLabel('CIUDAD'),
             const SizedBox(height: 8),
             AppTextField(hint: 'Ciudad de México', controller: _city),
+            const SizedBox(height: 15),
+            const SectionLabel('TIPO DE USUARIO'),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+              color: AppColors.surfaceSoft,
+              child: Text(
+                AppScope.of(context).profile.role.label,
+                style: const TextStyle(fontSize: 15, color: AppColors.muted),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(top: 4, left: 2),
+              child: Text(
+                'El tipo de usuario solo lo puede cambiar un administrador.',
+                style: TextStyle(fontSize: 12, color: AppColors.muted),
+              ),
+            ),
             const SizedBox(height: 25),
             PrimaryButton(label: 'Guardar cambios', onPressed: _save),
           ],

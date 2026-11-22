@@ -61,13 +61,17 @@ class _EditUserScreenState extends State<EditUserScreen> {
     setState(() => _showErrors = true);
     if (_nameError != null || _emailError != null) return;
 
-    AppScope.read(context).updateUser(widget.user.copyWith(
+    final error = AppScope.read(context).updateUser(widget.user.copyWith(
       role: _role,
       name: _name.text.trim(),
       email: _email.text.trim(),
       phone: _phone.text.trim(),
       city: _city.text.trim(),
     ));
+    if (error != null) {
+      showAppSnackBar(context, error, icon: Icons.error_outline);
+      return;
+    }
     FocusScope.of(context).unfocus();
     popAndShowSnackBar(context, 'Usuario actualizado',
         icon: Icons.check_circle);

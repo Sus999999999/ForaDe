@@ -22,48 +22,36 @@ class ContactScreen extends StatefulWidget {
 }
 
 class _ContactScreenState extends State<ContactScreen> {
-  late final TextEditingController _name;
-  late final TextEditingController _phone;
-  final TextEditingController _message = TextEditingController(); // vacío
+  final TextEditingController _message = TextEditingController();
+  bool _sharePhone = false;
   bool _showErrors = false;
 
   @override
-  void initState() {
-    super.initState();
-    final profile = AppScope.read(context).profile;
-    _name = TextEditingController(text: profile.name);
-    _phone = TextEditingController(text: profile.phone);
-  }
-
-  @override
   void dispose() {
-    _name.dispose();
-    _phone.dispose();
     _message.dispose();
     super.dispose();
   }
 
-  String? _requiredError(TextEditingController c, String msg) =>
-      _showErrors && c.text.trim().isEmpty ? msg : null;
-
   void _send() {
     setState(() => _showErrors = true);
-    if (_name.text.trim().isEmpty || _message.text.trim().isEmpty) return;
+    if (_message.text.trim().isEmpty) return;
 
     FocusScope.of(context).unfocus();
     final state = AppScope.read(context);
     final chat = state.openChat(widget.apartment);
     if (chat == null) {
-      showAppSnackBar(context, 'No puedes iniciar un chat con este rentero',
+      showAppSnackBar(
+          context, 'No puedes contactar al publicador de este departamento',
           icon: Icons.error_outline);
       return;
     }
 
-    // El mensaje del formulario es el primero de la conversación.
-    final phone = _phone.text.trim();
-    final text = phone.isEmpty
-        ? _message.text.trim()
-        : '${_message.text.trim()}\n\nMi teléfono: $phone';
+    // El remitente y la fecha se asignan solos (usuario actual y hora de envío).
+    // El teléfono solo se comparte si la persona lo decide.
+    final phone = state.profile.phone.trim();
+    final text = _sharePhone && phone.isNotEmpty
+        ? '${_message.text.trim()}\n\nMi teléfono: $phone'
+        : _message.text.trim();
     state.sendMessage(chat.id, text);
 
     Navigator.of(context)
@@ -138,43 +126,32 @@ class _ContactScreenState extends State<ContactScreen> {
               subtitle: a.hostSubtitle,
               prefix: 'Para ',
             ),
-            if (a.contact.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(
-                'Contacto directo: ${a.contact}',
-                style:
-                    const TextStyle(fontSize: 13, color: AppColors.muted),
-              ),
-            ],
             const Divider(height: 36, color: AppColors.divider),
-            const SectionLabel('TU NOMBRE'),
-            const SizedBox(height: 8),
-            AppTextField(
-              hint: 'Nombre completo',
-              controller: _name,
-              errorText: _requiredError(_name, 'Escribe tu nombre'),
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 16),
-            const SectionLabel('TELÉFONO (OPCIONAL)'),
-            const SizedBox(height: 8),
-            AppTextField(
-              hint: 'Para que el rentero te contacte',
-              controller: _phone,
-              keyboardType: TextInputType.phone,
-            ),
-            const SizedBox(height: 16),
             const SectionLabel('MENSAJE'),
             const SizedBox(height: 8),
             AppTextField(
               hint: 'Cuéntale a ${a.hostName} por qué te interesa rentar...',
               controller: _message,
               maxLines: 6,
-              errorText: _requiredError(_message, 'Escribe un mensaje'),
+              errorText: _showErrors && _message.text.trim().isEmpty
+                  ? 'Escribe un mensaje'
+                  : null,
               onChanged: (_) => setState(() {}),
             ),
-            const SizedBox(height: 26),
-            PrimaryButton(label: 'Enviar e iniciar chat', onPressed: _send),
+            if (AppScope.of(context).profile.phone.trim().isNotEmpty)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Compartir mi teléfono',
+                    style: TextStyle(fontSize: 14.5)),
+                subtitle: const Text(
+                  'Por defecto tu teléfono y correo no se muestran.',
+                  style: TextStyle(fontSize: 12),
+                ),
+                value: _sharePhone,
+                onChanged: (v) => setState(() => _sharePhone = v),
+              ),
+            const SizedBox(height: 20),
+            PrimaryButton(label: 'Enviar mensaje', onPressed: _send),
           ],
         ),
       ),

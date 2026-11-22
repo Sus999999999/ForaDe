@@ -7,7 +7,13 @@ import 'user_role_ui.dart';
 class RoleOptionButton extends StatelessWidget {
   final UserRole role;
   final VoidCallback onTap;
-  const RoleOptionButton({super.key, required this.role, required this.onTap});
+  final bool selected;
+  const RoleOptionButton({
+    super.key,
+    required this.role,
+    required this.onTap,
+    this.selected = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +24,10 @@ class RoleOptionButton extends StatelessWidget {
       child: Ink(
         decoration: BoxDecoration(
           borderRadius: radius,
-          border: Border.all(color: AppColors.divider),
+          border: Border.all(
+            color: selected ? role.color : AppColors.divider,
+            width: selected ? 2 : 1,
+          ),
         ),
         child: InkWell(
           borderRadius: radius,
@@ -61,7 +70,9 @@ class RoleOptionButton extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: AppColors.muted),
+                selected
+                    ? Icon(Icons.check_circle, color: role.color)
+                    : const Icon(Icons.chevron_right, color: AppColors.muted),
               ],
             ),
           ),

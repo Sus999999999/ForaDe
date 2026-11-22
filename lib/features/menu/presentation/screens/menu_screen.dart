@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/routes/app_routes.dart';
 import '../../../../core/state/app_scope.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/menu_item_data.dart';
@@ -15,8 +16,17 @@ class MenuScreen extends StatelessWidget {
   void _onItemTap(BuildContext context, MenuItemData item) {
     final navigator = Navigator.of(context);
     navigator.pop();
-    // "Inicio" no tiene ruta: solo cierra el menú y deja ver el mapa.
-    if (item.route != null) navigator.pushNamed(item.route!);
+    // El Dashboard es la base de la pila: sin ruta, regresamos a él.
+    if (item.route == null) {
+      navigator.popUntil(
+          (r) => r.settings.name == AppRoutes.home || r.isFirst);
+      return;
+    }
+    // Cada opción reemplaza a la anterior (la pila queda Dashboard + pantalla).
+    navigator.pushNamedAndRemoveUntil(
+      item.route!,
+      (r) => r.settings.name == AppRoutes.home || r.isFirst,
+    );
   }
 
   @override

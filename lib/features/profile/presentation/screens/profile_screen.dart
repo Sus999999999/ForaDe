@@ -4,6 +4,7 @@ import '../../../../core/routes/app_routes.dart';
 import '../../../../core/state/app_scope.dart';
 import '../../../../core/state/app_state.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/session_actions.dart';
 import '../../../../shared/widgets/outlined_action_button.dart';
 import '../widgets/contact_info_list.dart';
 import '../widgets/profile_stats_card.dart';
@@ -126,6 +127,11 @@ class ProfileScreen extends StatelessWidget {
                     label: 'Editar información',
                     onPressed: () =>
                         Navigator.of(context).pushNamed(AppRoutes.editProfile),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedActionButton(
+                    label: 'Cerrar sesión',
+                    onPressed: () => logoutToLogin(context),
                   ),
                 ],
               ),

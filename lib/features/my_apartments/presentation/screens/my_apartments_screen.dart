@@ -15,7 +15,7 @@ class MyApartmentsScreen extends StatelessWidget {
   const MyApartmentsScreen({super.key});
 
   void _add(BuildContext context) =>
-      Navigator.of(context).pushNamed(AppRoutes.addApartment);
+      Navigator.of(context).pushNamed(AppRoutes.apartmentForm);
 
   Future<void> _delete(BuildContext context, Apartment a) async {
     final state = AppScope.read(context);
@@ -26,8 +26,8 @@ class MyApartmentsScreen extends StatelessWidget {
       confirmLabel: 'Eliminar',
     );
     if (!ok || !context.mounted) return;
-    state.removeApartment(a.id);
-    showAppSnackBar(context, 'Departamento eliminado');
+    state.deactivateApartment(a.id);
+    showAppSnackBar(context, 'Departamento desactivado');
   }
 
   @override

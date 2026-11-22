@@ -22,7 +22,7 @@ class AdminUsersTab extends StatelessWidget {
 
     final count = state.apartmentCountOf(user.id);
     final extra = count > 0
-        ? ' También se eliminarán sus $count departamento${count == 1 ? '' : 's'}.'
+        ? ' Sus $count departamento${count == 1 ? '' : 's'} pasarán a Inactivo (se conservan sus contactos y favoritos).'
         : '';
     final ok = await confirmDialog(
       context,

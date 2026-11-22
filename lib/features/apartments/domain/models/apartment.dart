@@ -1,38 +1,59 @@
+import '../../../../core/geo/geo_point.dart';
+import '../../../../core/utils/money.dart';
+import 'apartment_status.dart';
+
 class Apartment {
   final String id;
   final String ownerId; // id del usuario (rentero) que lo publicó
   final String title;
-  final String location;
   final String description;
-  final int price;
+  final Money price; // renta mensual
+
+  /// Zona pública (colonia y ciudad). Es lo único que ve cualquier persona.
+  final String location;
+
+  /// Dirección exacta. PRIVADA: solo el dueño y quien ya está en contacto con
+  /// él (ver `AppState.canSeeExactLocation`).
+  final String address;
+
+  /// Coordenadas exactas. PRIVADAS: en la búsqueda se usa [approxPoint].
+  final GeoPoint point;
+
+  final ApartmentStatus status;
   final double rating; // 0 = sin calificaciones (nuevo)
-  final String? distanceLabel;
-  final bool isAvailable;
   final String hostName;
   final String hostSubtitle;
-  final String contact; // teléfono o correo que escribió el rentero
 
   const Apartment({
     required this.id,
     required this.ownerId,
     required this.title,
     required this.location,
+    required this.address,
+    required this.point,
     required this.description,
     required this.price,
     required this.hostName,
+    this.status = ApartmentStatus.disponible,
     this.rating = 0,
-    this.distanceLabel,
-    this.isAvailable = true,
     this.hostSubtitle = 'Propietario verificado',
-    this.contact = '',
   });
+
+  bool get isAvailable => status == ApartmentStatus.disponible;
+  bool get isInactive => status == ApartmentStatus.inactivo;
+
+  /// Punto desplazado unos cientos de metros: es el que se dibuja en el mapa
+  /// público y se usa para calcular distancias.
+  GeoPoint get approxPoint => point.fuzzed(id);
 
   Apartment copyWith({
     String? title,
     String? location,
+    String? address,
+    GeoPoint? point,
     String? description,
-    int? price,
-    bool? isAvailable,
+    Money? price,
+    ApartmentStatus? status,
     String? hostName,
   }) =>
       Apartment(
@@ -40,13 +61,13 @@ class Apartment {
         ownerId: ownerId,
         title: title ?? this.title,
         location: location ?? this.location,
+        address: address ?? this.address,
+        point: point ?? this.point,
         description: description ?? this.description,
         price: price ?? this.price,
+        status: status ?? this.status,
         rating: rating,
-        distanceLabel: distanceLabel,
-        isAvailable: isAvailable ?? this.isAvailable,
         hostName: hostName ?? this.hostName,
         hostSubtitle: hostSubtitle,
-        contact: contact,
       );
 }

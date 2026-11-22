@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/state/app_scope.dart';
+import '../../../../core/utils/money.dart';
 import '../../../../core/utils/snackbar.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/primary_button.dart';
 import '../../../../shared/widgets/section_label.dart';
 import '../../../../shared/widgets/title_app_bar.dart';
 import '../../../apartments/domain/models/apartment.dart';
+import '../../../apartments/domain/models/apartment_status.dart';
 
 class EditApartmentScreen extends StatefulWidget {
   final Apartment apartment;
@@ -31,7 +33,7 @@ class _EditApartmentScreenState extends State<EditApartmentScreen> {
     final a = widget.apartment;
     _title = TextEditingController(text: a.title);
     _description = TextEditingController(text: a.description);
-    _price = TextEditingController(text: a.price.toString());
+    _price = TextEditingController(text: a.price.plain);
     _location = TextEditingController(text: a.location);
     _available = a.isAvailable;
   }
@@ -50,13 +52,16 @@ class _EditApartmentScreenState extends State<EditApartmentScreen> {
 
   void _save() {
     setState(() => _showErrors = true);
-    final price = int.tryParse(_price.text.trim());
+    final price = Money.tryParse(_price.text.trim());
     final valid = _title.text.trim().isNotEmpty &&
         _description.text.trim().isNotEmpty &&
         _location.text.trim().isNotEmpty &&
         price != null &&
-        price > 0;
+        price.isPositive;
     if (!valid) return;
+
+    final status =
+        _available ? ApartmentStatus.disponible : ApartmentStatus.noDisponible;
 
     AppScope.read(context).updateApartment(
       widget.apartment.copyWith(
@@ -64,7 +69,7 @@ class _EditApartmentScreenState extends State<EditApartmentScreen> {
         description: _description.text.trim(),
         price: price,
         location: _location.text.trim(),
-        isAvailable: _available,
+        status: status,
       ),
     );
     FocusScope.of(context).unfocus();
@@ -104,8 +109,11 @@ class _EditApartmentScreenState extends State<EditApartmentScreen> {
             const SizedBox(height: 8),
             AppTextField(
               hint: '\$ Precio mensual',
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
               controller: _price,
               errorText: _required(_price),
               onChanged: (_) => setState(() {}),

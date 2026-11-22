@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/state/app_scope.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../apartments/domain/models/apartment.dart';
@@ -13,9 +14,10 @@ class ApartmentPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final subtitle = apartment.distanceLabel == null
+    final distance = AppScope.of(context).distanceLabel(apartment);
+    final subtitle = distance == null
         ? apartment.location
-        : '${apartment.location}, ${apartment.distanceLabel}';
+        : '${apartment.location}, $distance';
 
     return DecoratedBox(
       decoration: BoxDecoration(

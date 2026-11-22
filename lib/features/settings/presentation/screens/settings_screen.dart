@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/state/app_scope.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/session_actions.dart';
 import '../../../../core/utils/snackbar.dart';
 import '../../../../shared/widgets/confirm_dialog.dart';
 import '../../../../shared/widgets/menu_row_tile.dart';
@@ -24,11 +25,21 @@ class SettingsScreen extends StatelessWidget {
     showAppSnackBar(context, 'Favoritos eliminados');
   }
 
-  void _logout(BuildContext context) {
-    final navigator = Navigator.of(context);
+  Future<void> _toggleLocation(BuildContext context) async {
     final state = AppScope.read(context);
-    navigator.pushNamedAndRemoveUntil(AppRoutes.roleSelection, (_) => false);
-    state.logout();
+    if (state.locationEnabled) {
+      state.disableLocation();
+      showAppSnackBar(context, 'Ubicación desactivada',
+          icon: Icons.location_off_outlined);
+      return;
+    }
+    final ok = await state.enableLocation();
+    if (!context.mounted) return;
+    showAppSnackBar(
+      context,
+      ok ? 'Ubicación activada' : 'No se pudo obtener tu ubicación',
+      icon: ok ? Icons.my_location : Icons.location_off_outlined,
+    );
   }
 
   Future<void> _deleteAccount(BuildContext context) async {
@@ -38,7 +49,7 @@ class SettingsScreen extends StatelessWidget {
 
     final count = state.myApartments.length;
     final extra = count > 0
-        ? ' También se eliminarán tus $count departamento${count == 1 ? '' : 's'}.'
+        ? ' Tus $count departamento${count == 1 ? '' : 's'} pasarán a Inactivo y dejarán de aparecer en las búsquedas.'
         : '';
 
     final ok = await confirmDialog(
@@ -50,7 +61,7 @@ class SettingsScreen extends StatelessWidget {
     );
     if (!ok) return;
 
-    navigator.pushNamedAndRemoveUntil(AppRoutes.roleSelection, (_) => false);
+    navigator.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
     state.deleteCurrentAccount();
     messenger
       ..hideCurrentSnackBar()
@@ -79,10 +90,20 @@ class SettingsScreen extends StatelessWidget {
               onTap: () => _clearFavorites(context),
             ),
           MenuRowTile(
+            icon: state.locationEnabled
+                ? Icons.my_location
+                : Icons.location_off_outlined,
+            label: state.locationEnabled
+                ? 'Ubicación: activada (toca para desactivar)'
+                : 'Ubicación: desactivada (toca para activar)',
+            showChevron: false,
+            onTap: () => _toggleLocation(context),
+          ),
+          MenuRowTile(
             icon: Icons.logout,
             label: 'Cerrar sesión',
             showChevron: false,
-            onTap: () => _logout(context),
+            onTap: () => logoutToLogin(context),
           ),
           MenuRowTile(
             icon: Icons.delete_forever_outlined,

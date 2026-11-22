@@ -1,54 +1,34 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/geo/geo_point.dart';
+import '../../../../core/geo/map_viewport.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../apartments/domain/models/apartment.dart';
 import 'map_pin.dart';
 
-/// Coloca un pin por departamento sobre el mapa.
-///
-/// Las posiciones se expresan como proporción del área (0–1), así se ven igual
-/// en cualquier pantalla. Los departamentos de ejemplo tienen posición fija
-/// (la del diseño); los nuevos reciben una posición estable calculada a partir
-/// de su id, dentro de la zona libre entre el buscador y la tarjeta.
+/// Coloca un pin por departamento sobre el mapa usando su ubicación
+/// APROXIMADA (nunca la exacta) y, si se permitió, un punto azul con la
+/// ubicación del usuario.
 class MapPinsLayer extends StatelessWidget {
   /// Los departamentos que se muestran ahora.
   final List<Apartment> visible;
+  final MapViewport viewport;
+  final GeoPoint? userLocation;
   final String? selectedId;
   final ValueChanged<Apartment> onPinTap;
 
   const MapPinsLayer({
     super.key,
     required this.visible,
+    required this.viewport,
     required this.selectedId,
     required this.onPinTap,
+    this.userLocation,
   });
 
   static const double _pinSize = 33;
   static const double _pinSizeSelected = 49;
-
-  /// Punta del pin (x, y) en proporción del área.
-  static const Map<String, Offset> _anchors = {
-    'seed-1': Offset(0.536, 0.467),
-    'seed-2': Offset(0.736, 0.263),
-    'seed-3': Offset(0.250, 0.329),
-    'seed-4': Offset(0.329, 0.597),
-  };
-
-  static int _hash(String s) {
-    var h = 7;
-    for (final c in s.codeUnits) {
-      h = (h * 31 + c) & 0x7FFFFFFF;
-    }
-    return h;
-  }
-
-  static Offset _anchorOf(String id) {
-    final known = _anchors[id];
-    if (known != null) return known;
-    final h = _hash(id);
-    final fx = 0.14 + ((h % 1000) / 1000) * 0.72;
-    final fy = 0.27 + (((h ~/ 1000) % 1000) / 1000) * 0.35;
-    return Offset(fx, fy);
-  }
+  static const double _userDot = 18;
 
   @override
   Widget build(BuildContext context) {
@@ -61,14 +41,36 @@ class MapPinsLayer extends StatelessWidget {
 
         return Stack(
           children: [
+            if (userLocation != null)
+              Builder(builder: (_) {
+                final at = viewport.project(userLocation!);
+                return Positioned(
+                  left: c.maxWidth * at.dx - _userDot / 2,
+                  top: c.maxHeight * at.dy - _userDot / 2,
+                  child: IgnorePointer(
+                    child: Container(
+                      width: _userDot,
+                      height: _userDot,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2F80ED),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black26, blurRadius: 4),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
             for (final a in ordered)
               Builder(builder: (_) {
                 final selected = a.id == selectedId;
                 final size = selected ? _pinSizeSelected : _pinSize;
-                final anchor = _anchorOf(a.id);
+                final at = viewport.project(a.approxPoint);
                 return Positioned(
-                  left: c.maxWidth * anchor.dx - size / 2,
-                  top: c.maxHeight * anchor.dy - size * 1.25,
+                  left: c.maxWidth * at.dx - size / 2,
+                  top: c.maxHeight * at.dy - size * 1.25,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () => onPinTap(a),
@@ -79,6 +81,31 @@ class MapPinsLayer extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Aviso corto sobre el mapa (p. ej. "Ubicación aproximada").
+class MapNote extends StatelessWidget {
+  final String text;
+  const MapNote(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          color: AppColors.navy,
+        ),
+      ),
     );
   }
 }

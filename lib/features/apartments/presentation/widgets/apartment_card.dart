@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/utils/snackbar.dart';
 import '../../domain/models/apartment.dart';
+import '../../domain/models/apartment_status.dart';
 import 'apartment_image.dart';
 
 /// Tarjeta vertical estilo Airbnb: imagen grande, corazón y datos debajo.
@@ -23,7 +24,9 @@ class ApartmentCard extends StatelessWidget {
   });
 
   String? get _tag {
-    if (!apartment.isAvailable) return 'No disponible';
+    if (apartment.status != ApartmentStatus.disponible) {
+      return apartment.status.label;
+    }
     if (apartment.rating == 0) return 'Nuevo';
     if (apartment.rating >= 4.8) return 'Popular';
     return null;
@@ -35,8 +38,8 @@ class ApartmentCard extends StatelessWidget {
     final a = apartment;
     final isFav = state.isFavorite(a.id);
     final tag = _tag;
-    final subtitle =
-        a.distanceLabel == null ? a.location : '${a.location} · ${a.distanceLabel}';
+    final distance = state.distanceLabel(a);
+    final subtitle = distance == null ? a.location : '${a.location} · $distance';
 
     final card = GestureDetector(
       behavior: HitTestBehavior.opaque,

@@ -3,133 +3,157 @@ import 'package:flutter/material.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/state/app_scope.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/validators.dart';
 import '../../../../shared/widgets/app_text_field.dart';
+import '../../../../shared/widgets/outlined_action_button.dart';
 import '../../../../shared/widgets/primary_button.dart';
 import '../../../../shared/widgets/section_label.dart';
-import '../../../../shared/widgets/title_app_bar.dart';
-import '../../domain/models/user_role.dart';
-import '../widgets/role_badge.dart';
+import '../widgets/auth_header.dart';
+import '../widgets/password_field.dart';
 
+/// Inicio de sesión con correo y contraseña.
 class LoginScreen extends StatefulWidget {
-  final UserRole role;
-  const LoginScreen({super.key, required this.role});
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _name = TextEditingController();
   final _email = TextEditingController();
-  final _phone = TextEditingController();
-  final _city = TextEditingController();
+  final _password = TextEditingController();
   bool _showErrors = false;
+  bool _busy = false;
+  String? _formError;
 
   @override
   void dispose() {
-    _name.dispose();
     _email.dispose();
-    _phone.dispose();
-    _city.dispose();
+    _password.dispose();
     super.dispose();
   }
 
-  String? get _nameError =>
-      _showErrors && _name.text.trim().isEmpty ? 'Escribe tu nombre' : null;
+  String? get _emailError => _showErrors ? Validators.email(_email.text) : null;
 
-  String? get _emailError {
-    if (!_showErrors) return null;
-    final v = _email.text.trim();
-    if (v.isEmpty) return 'Escribe tu correo';
-    if (!v.contains('@') || !v.contains('.')) return 'Correo no válido';
-    return null;
-  }
+  String? get _passwordError =>
+      _showErrors && _password.text.isEmpty ? 'Escribe tu contraseña' : null;
 
-  void _submit() {
-    setState(() => _showErrors = true);
-    if (_nameError != null || _emailError != null) return;
+  Future<void> _submit() async {
+    if (_busy) return;
+    setState(() {
+      _showErrors = true;
+      _formError = null;
+    });
+    if (Validators.email(_email.text) != null || _password.text.isEmpty) return;
 
     FocusScope.of(context).unfocus();
+    setState(() => _busy = true);
+    // Deja que se pinte el indicador antes del cálculo del hash.
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    if (!mounted) return;
+
     final navigator = Navigator.of(context);
-    AppScope.read(context).login(
-      role: widget.role,
-      name: _name.text,
+    final error = await AppScope.read(context).login(
       email: _email.text,
-      phone: _phone.text,
-      city: _city.text,
+      password: _password.text,
     );
+    if (error != null) {
+      setState(() {
+        _busy = false;
+        _formError = error;
+      });
+      return;
+    }
     navigator.pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const TitleAppBar(title: 'Iniciar sesión'),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Inicia sesión',
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                color: AppColors.text,
-                letterSpacing: -0.4,
+      resizeToAvoidBottomInset: true,
+      body: Column(
+        children: [
+          const AuthHeader(),
+          Expanded(
+            child: SingleChildScrollView(
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Inicia sesión',
+                    style: TextStyle(
+                      fontFamily: AppColors.serif,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.navy,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  const SectionLabel('CORREO'),
+                  const SizedBox(height: 8),
+                  AppTextField(
+                    hint: 'correo@ejemplo.com',
+                    controller: _email,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    errorText: _emailError,
+                    onChanged: (_) => setState(() => _formError = null),
+                  ),
+                  const SizedBox(height: 15),
+                  const SectionLabel('CONTRASEÑA'),
+                  const SizedBox(height: 8),
+                  PasswordField(
+                    controller: _password,
+                    errorText: _passwordError,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _submit(),
+                    onChanged: (_) => setState(() => _formError = null),
+                  ),
+                  if (_formError != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      _formError!,
+                      style:
+                          TextStyle(fontSize: 13, color: Colors.red.shade600),
+                    ),
+                  ],
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _busy
+                          ? null
+                          : () => Navigator.of(context)
+                              .pushNamed(AppRoutes.recoverAccess),
+                      child: const Text(
+                        '¿Olvidaste tu contraseña?',
+                        style: TextStyle(
+                          color: AppColors.blue,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  PrimaryButton(
+                    label: _busy ? 'Verificando...' : 'Iniciar sesión',
+                    onPressed: _busy ? null : _submit,
+                  ),
+                  const SizedBox(height: 14),
+                  OutlinedActionButton(
+                    label: 'Crear cuenta',
+                    onPressed: _busy
+                        ? null
+                        : () => Navigator.of(context)
+                            .pushNamed(AppRoutes.register),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                const Text(
-                  'Entrar como',
-                  style: TextStyle(fontSize: 14, color: AppColors.muted),
-                ),
-                const SizedBox(width: 8),
-                RoleBadge(role: widget.role),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Por ahora solo guardamos tus datos mientras la app esté abierta. No necesitas contraseña.',
-              style: TextStyle(fontSize: 12.5, color: AppColors.muted, height: 1.4),
-            ),
-            const SizedBox(height: 22),
-            const SectionLabel('NOMBRE'),
-            const SizedBox(height: 8),
-            AppTextField(
-              hint: 'Nombre completo',
-              controller: _name,
-              errorText: _nameError,
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 15),
-            const SectionLabel('CORREO'),
-            const SizedBox(height: 8),
-            AppTextField(
-              hint: 'correo@ejemplo.com',
-              controller: _email,
-              keyboardType: TextInputType.emailAddress,
-              errorText: _emailError,
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 15),
-            const SectionLabel('TELÉFONO (OPCIONAL)'),
-            const SizedBox(height: 8),
-            AppTextField(
-              hint: '+52 55 0000 0000',
-              controller: _phone,
-              keyboardType: TextInputType.phone,
-            ),
-            const SizedBox(height: 15),
-            const SectionLabel('CIUDAD (OPCIONAL)'),
-            const SizedBox(height: 8),
-            AppTextField(hint: 'Ciudad de México', controller: _city),
-            const SizedBox(height: 25),
-            PrimaryButton(label: 'Continuar', onPressed: _submit),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

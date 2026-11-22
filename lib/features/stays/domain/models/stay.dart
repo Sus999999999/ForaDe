@@ -1,3 +1,5 @@
+import '../../../../core/utils/money.dart';
+
 /// Tiempo transcurrido de una estancia, en meses y días de calendario.
 class StayLength {
   final int months;
@@ -60,7 +62,7 @@ class Stay {
   final String apartmentTitle;
   final String location;
   final String hostName;
-  final int monthlyPrice;
+  final Money monthlyPrice;
   final DateTime startDate;
   final DateTime? endDate; // null = estancia en curso
 

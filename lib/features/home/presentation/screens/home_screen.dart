@@ -48,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return WelcomeBanner(
         title: greeting,
         subtitle: 'Publica un nuevo departamento y llega a más personas.',
-        onTap: () => Navigator.of(context).pushNamed(AppRoutes.addApartment),
+        onTap: () => Navigator.of(context).pushNamed(AppRoutes.apartmentForm),
       );
     }
     if (state.isAdmin) {
@@ -107,10 +107,10 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    final nearby = results.where((a) => a.distanceLabel != null).toList();
+    final nearby = results.where((a) => state.distanceLabel(a) != null).toList();
     final topRated = results.where((a) => a.rating > 0).toList()
       ..sort((a, b) => b.rating.compareTo(a.rating));
-    final recent = results.where((a) => a.distanceLabel == null).toList();
+    final recent = results.where((a) => state.distanceLabel(a) == null).toList();
 
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
