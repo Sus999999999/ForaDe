@@ -15,7 +15,7 @@ class SupabaseService {
   SupabaseClient get _client => Supabase.instance.client;
 
   User? get currentUser => _client.auth.currentUser;
-  bool get hasSession => currentUser != null;
+  bool get hasSession => _client.auth.currentSession != null;
 
   /// Obtiene el perfil del usuario actual desde la tabla 'profiles'.
   Future<UserProfile?> getCurrentProfile() async {
@@ -29,30 +29,32 @@ class SupabaseService {
           .eq('id', user.id)
           .maybeSingle();
 
-      if (data == null) {
+      if (data != null) {
         return UserProfile(
-          id: user.id,
-          role: UserRole.rentador,
-          name: user.userMetadata?['name'] ?? 'Usuario',
+          id: data['id'] as String,
+          role: UserRole.values.firstWhere(
+            (r) => r.name == data['role'],
+            orElse: () => UserRole.rentador,
+          ),
+          name: (data['name'] as String?) ?? 'Usuario',
           email: user.email ?? '',
-          phone: user.userMetadata?['phone'] ?? '',
+          phone: (data['phone'] as String?) ?? '',
+          city: (data['city'] as String?) ?? '',
         );
       }
+    } catch (_) {}
 
-      return UserProfile(
-        id: data['id'] as String,
-        role: UserRole.values.firstWhere(
-          (r) => r.name == data['role'],
-          orElse: () => UserRole.rentador,
-        ),
-        name: (data['name'] as String?) ?? 'Usuario',
-        email: user.email ?? '',
-        phone: (data['phone'] as String?) ?? '',
-        city: (data['city'] as String?) ?? '',
-      );
-    } catch (_) {
-      return null;
-    }
+    // Fallback con los metadatos de Auth si la tabla no responde o no existe fila
+    return UserProfile(
+      id: user.id,
+      role: UserRole.values.firstWhere(
+        (r) => r.name == user.userMetadata?['role'],
+        orElse: () => UserRole.rentador,
+      ),
+      name: (user.userMetadata?['name'] as String?) ?? 'Usuario',
+      email: user.email ?? '',
+      phone: (user.userMetadata?['phone'] as String?) ?? '',
+    );
   }
 
   /// Inicia sesión con correo y contraseña.
@@ -99,6 +101,24 @@ class SupabaseService {
       if (res.user == null) {
         return 'No se pudo crear la cuenta.';
       }
+
+      // Si Supabase no otorgó sesión directa (por tener Confirm Email activado)
+      if (res.session == null) {
+        try {
+          final loginRes = await _client.auth.signInWithPassword(
+            email: email.trim(),
+            password: password,
+          );
+          if (loginRes.session == null) {
+            return 'Cuenta creada. Por favor confirma el correo electrónico enviado a tu bandeja para poder entrar.';
+          }
+        } on AuthException catch (e) {
+          if (e.message.toLowerCase().contains('email not confirmed')) {
+            return 'Cuenta creada. Supabase requiere confirmar tu correo antes de entrar. (O desactiva "Confirm email" en Supabase).';
+          }
+        } catch (_) {}
+      }
+
       return null;
     } on AuthException catch (e) {
       if (e.message.toLowerCase().contains('already registered')) {

@@ -43,14 +43,18 @@ class _SplashScreenState extends State<SplashScreen>
       CurvedAnimation(parent: _intro, curve: Curves.easeOutBack),
     );
 
-    // Cargar sesión remota guardada y departamentos desde Supabase
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        AppScope.read(context).restoreSession();
-      }
-    });
+    _initApp();
+  }
 
-    _timer = Timer(SplashScreen.duration, _goNext);
+  Future<void> _initApp() async {
+    // Espera simultáneamente la duración visual del splash y la carga de sesión remota
+    await Future.wait([
+      Future<void>.delayed(SplashScreen.duration),
+      AppScope.read(context).restoreSession(),
+    ]);
+
+    if (!mounted) return;
+    _goNext();
   }
 
   void _goNext() {
