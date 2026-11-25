@@ -4,6 +4,7 @@ import '../../../../core/state/app_scope.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../apartments/domain/models/apartment.dart';
+import '../../../apartments/presentation/widgets/apartment_image.dart';
 
 class ApartmentPreviewCard extends StatelessWidget {
   final Apartment apartment;
@@ -30,14 +31,16 @@ class ApartmentPreviewCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Container(
+              SizedBox(
                 width: 84,
                 height: 84,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceSoft,
-                  borderRadius: BorderRadius.circular(12),
+                child: ApartmentImage(
+                  seed: apartment.id,
+                  imageUrl: apartment.images.isNotEmpty
+                      ? apartment.images.first
+                      : null,
+                  radius: 12,
                 ),
-                child: const Icon(Icons.image_outlined, color: AppColors.muted),
               ),
               const SizedBox(width: 16),
               Expanded(

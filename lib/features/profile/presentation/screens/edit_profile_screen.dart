@@ -6,6 +6,7 @@ import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/primary_button.dart';
 import '../../../../shared/widgets/section_label.dart';
 import '../../../../shared/widgets/title_app_bar.dart';
+import '../../../../shared/widgets/user_avatar.dart';
 import '../../../../core/theme/app_colors.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -75,6 +76,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final profile = AppScope.of(context).profile;
+
     return Scaffold(
       appBar: const TitleAppBar(title: 'Editar información'),
       body: SingleChildScrollView(
@@ -82,6 +85,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 24, top: 8),
+                child: UserAvatar(
+                  avatarUrl: profile.avatarUrl,
+                  name: profile.name,
+                  size: 96,
+                  showEditBadge: true,
+                  onTap: () => pickAndUploadAvatar(context),
+                ),
+              ),
+            ),
             const SectionLabel('NOMBRE'),
             const SizedBox(height: 8),
             AppTextField(

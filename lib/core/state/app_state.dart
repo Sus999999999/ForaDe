@@ -675,7 +675,7 @@ class AppState extends ChangeNotifier {
   }
 
   /// Publica un departamento nuevo (solo renteros). Devuelve null o el error.
-  String? addApartment({
+  Future<String?> addApartment({
     required String title,
     required String description,
     required Money price,
@@ -683,7 +683,8 @@ class AppState extends ChangeNotifier {
     required String address,
     required GeoPoint point,
     ApartmentStatus status = ApartmentStatus.disponible,
-  }) {
+    List<Uint8List>? imageBytes,
+  }) async {
     final user = _currentUser;
     if (user == null || !canPublish) {
       return 'Solo los renteros pueden publicar departamentos.';
@@ -705,9 +706,28 @@ class AppState extends ChangeNotifier {
       hostName: user.name,
       hostSubtitle: 'Propietario',
     );
-    _apartments.insert(0, newApt);
+
+    // Subir a Supabase junto con sus fotos
+    final error = await SupabaseService.instance.insertApartment(
+      newApt,
+      newImageBytes: imageBytes,
+    );
+
+    if (error != null) {
+      return error;
+    }
+
+    // Recargar desde Supabase para obtener el ID real y las fotos enlazadas
+    final remote = await SupabaseService.instance.fetchApartments();
+    if (remote.isNotEmpty) {
+      _apartments
+        ..clear()
+        ..addAll(remote);
+    } else {
+      _apartments.insert(0, newApt);
+    }
     notifyListeners();
-    SupabaseService.instance.insertApartment(newApt);
+
     return null;
   }
 
@@ -944,7 +964,22 @@ class AppState extends ChangeNotifier {
     if (_currentUser?.id == next.id) _currentUser = next;
     _syncHostName(next.id, next.name);
     notifyListeners();
+    SupabaseService.instance.updateProfile(next);
     return null;
+  }
+
+  /// Sube la foto de perfil del usuario a Supabase y actualiza el avatar.
+  Future<String?> uploadProfileAvatar(Uint8List bytes) async {
+    final url = await SupabaseService.instance.uploadAvatar(bytes);
+    if (url != null && _currentUser != null) {
+      _currentUser = _currentUser!.copyWith(avatarUrl: url);
+      final i = _users.indexWhere((u) => u.id == _currentUser!.id);
+      if (i >= 0) {
+        _users[i] = _currentUser!;
+      }
+      notifyListeners();
+    }
+    return url;
   }
 
   /// Elimina un usuario (solo administrador). Sus departamentos pasan a

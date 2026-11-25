@@ -34,6 +34,9 @@ class ApartmentListTile extends StatelessWidget {
               height: 72,
               child: ApartmentImage(
                 seed: apartment.id,
+                imageUrl: apartment.images.isNotEmpty
+                    ? apartment.images.first
+                    : null,
                 iconSize: 28,
                 radius: 4,
               ),

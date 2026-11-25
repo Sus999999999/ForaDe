@@ -46,3 +46,7 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Documentos internos de seguimiento
+plan_de_implementacion.txt
+PLAN_DE_IMPLEMENTACION.txt

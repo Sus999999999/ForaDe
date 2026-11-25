@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -44,7 +46,9 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
   late final TextEditingController _address;
   GeoPoint? _point;
   late ApartmentStatus _status;
+  List<Uint8List> _selectedImages = [];
   bool _showErrors = false;
+  bool _saving = false;
 
   bool get _editing => widget.apartment != null;
 
@@ -85,7 +89,8 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
     return null;
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (_saving) return;
     setState(() => _showErrors = true);
 
     final price = _priceValue;
@@ -103,12 +108,13 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
     }
 
     FocusScope.of(context).unfocus();
+    setState(() => _saving = true);
     final state = AppScope.read(context);
     final current = widget.apartment;
 
     final String? error;
     if (current == null) {
-      error = state.addApartment(
+      error = await state.addApartment(
         title: _title.text,
         description: _description.text,
         price: price,
@@ -116,6 +122,7 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
         address: _address.text,
         point: _point!,
         status: _status,
+        imageBytes: _selectedImages,
       );
     } else {
       final fresh = state.apartmentById(current.id) ?? current;
@@ -129,6 +136,9 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
         status: _status,
       ));
     }
+
+    if (!mounted) return;
+    setState(() => _saving = false);
 
     if (error != null) {
       showAppSnackBar(context, error, icon: Icons.error_outline);
@@ -274,7 +284,11 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const ImageUploadBox(), // sin función por ahora
+                  ImageUploadBox(
+                    images: _selectedImages,
+                    onImagesChanged: (imgs) =>
+                        setState(() => _selectedImages = imgs),
+                  ),
                   const SizedBox(height: 24),
                   const SectionLabel('TÍTULO'),
                   const SizedBox(height: 8),
@@ -364,8 +378,10 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
               child: PrimaryButton(
-                label: _editing ? 'Guardar cambios' : 'Publicar departamento',
-                onPressed: _save,
+                label: _saving
+                    ? (_editing ? 'Guardando...' : 'Subiendo departamento y fotos...')
+                    : (_editing ? 'Guardar cambios' : 'Publicar departamento'),
+                onPressed: _saving ? null : _save,
               ),
             ),
           ),

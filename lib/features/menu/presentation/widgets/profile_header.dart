@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/state/app_scope.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/user_avatar.dart';
 
-/// Cabecera del menú: círculo vacío (foto), nombre y correo.
+/// Cabecera del menú: avatar con foto/iniciales, nombre y correo.
 class ProfileHeader extends StatelessWidget {
   const ProfileHeader({super.key});
 
@@ -12,14 +13,10 @@ class ProfileHeader extends StatelessWidget {
     final profile = AppScope.of(context).profile;
     return Row(
       children: [
-        Container(
-          width: 70,
-          height: 70,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white,
-            border: Border.all(color: AppColors.border, width: 1.4),
-          ),
+        UserAvatar(
+          avatarUrl: profile.avatarUrl,
+          name: profile.name,
+          size: 64,
         ),
         const SizedBox(width: 16),
         Expanded(

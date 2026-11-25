@@ -1,9 +1,11 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
-/// Imagen de relleno (degradado suave + icono) hasta que haya fotos reales.
-/// Ocupa todo el espacio disponible; el color depende de [seed].
+/// Muestra la foto real del departamento si existe (con caché optimizada),
+/// o un degradado suave estético con icono de respaldo.
 class ApartmentImage extends StatelessWidget {
   final String seed;
+  final String? imageUrl;
   final IconData icon;
   final double iconSize;
   final double radius;
@@ -12,6 +14,7 @@ class ApartmentImage extends StatelessWidget {
   const ApartmentImage({
     super.key,
     required this.seed,
+    this.imageUrl,
     this.icon = Icons.apartment_rounded,
     this.iconSize = 44,
     this.radius = 4,
@@ -26,8 +29,7 @@ class ApartmentImage extends StatelessWidget {
     [Color(0xFFE0F0E8), Color(0xFFBFDFCF)],
   ];
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildPlaceholder(BuildContext context) {
     final colors = _palettes[seed.hashCode.abs() % _palettes.length];
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -47,6 +49,29 @@ class ApartmentImage extends StatelessWidget {
               size: iconSize,
               color: Colors.white.withValues(alpha: 0.8),
             ),
+          ),
+          if (child != null) child!,
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (imageUrl == null || imageUrl!.isEmpty) {
+      return _buildPlaceholder(context);
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          CachedNetworkImage(
+            imageUrl: imageUrl!,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => _buildPlaceholder(context),
+            errorWidget: (context, url, error) => _buildPlaceholder(context),
           ),
           if (child != null) child!,
         ],

@@ -52,6 +52,7 @@ class ApartmentCard extends StatelessWidget {
             aspectRatio: aspectRatio,
             child: ApartmentImage(
               seed: a.id,
+              imageUrl: a.images.isNotEmpty ? a.images.first : null,
               child: Stack(
                 children: [
                   if (tag != null)

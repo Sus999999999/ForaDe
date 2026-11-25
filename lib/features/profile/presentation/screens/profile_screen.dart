@@ -6,6 +6,7 @@ import '../../../../core/state/app_state.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/session_actions.dart';
 import '../../../../shared/widgets/outlined_action_button.dart';
+import '../../../../shared/widgets/user_avatar.dart';
 import '../widgets/contact_info_list.dart';
 import '../widgets/profile_stats_card.dart';
 
@@ -54,16 +55,12 @@ class ProfileScreen extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(24, 12, 24, 72),
                       child: Column(
                         children: [
-                          Container(
-                            width: 96,
-                            height: 96,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white54,
-                                width: 1.6,
-                              ),
-                            ),
+                          UserAvatar(
+                            avatarUrl: profile.avatarUrl,
+                            name: profile.name,
+                            size: 96,
+                            showEditBadge: true,
+                            onTap: () => pickAndUploadAvatar(context),
                           ),
                           const SizedBox(height: 16),
                           Text(

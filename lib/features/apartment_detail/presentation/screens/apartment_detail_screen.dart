@@ -76,7 +76,7 @@ class ApartmentDetailScreen extends StatelessWidget {
             // Foto a todo el ancho con los botones encima.
             Stack(
               children: [
-                PhotoGrid(seed: a.id),
+                PhotoGrid(seed: a.id, images: a.images),
                 Positioned(
                   top: top,
                   left: 20,

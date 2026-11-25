@@ -23,6 +23,7 @@ class Apartment {
   final double rating; // 0 = sin calificaciones (nuevo)
   final String hostName;
   final String hostSubtitle;
+  final List<String> images;
 
   const Apartment({
     required this.id,
@@ -37,6 +38,7 @@ class Apartment {
     this.status = ApartmentStatus.disponible,
     this.rating = 0,
     this.hostSubtitle = 'Propietario verificado',
+    this.images = const [],
   });
 
   bool get isAvailable => status == ApartmentStatus.disponible;
@@ -55,6 +57,7 @@ class Apartment {
     Money? price,
     ApartmentStatus? status,
     String? hostName,
+    List<String>? images,
   }) =>
       Apartment(
         id: id,
@@ -69,5 +72,6 @@ class Apartment {
         rating: rating,
         hostName: hostName ?? this.hostName,
         hostSubtitle: hostSubtitle,
+        images: images ?? this.images,
       );
 }

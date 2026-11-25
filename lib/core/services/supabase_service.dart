@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/apartments/domain/models/apartment.dart';
@@ -40,6 +42,7 @@ class SupabaseService {
           email: user.email ?? '',
           phone: (data['phone'] as String?) ?? '',
           city: (data['city'] as String?) ?? '',
+          avatarUrl: (data['avatar_url'] as String?) ?? '',
         );
       }
     } catch (_) {}
@@ -54,6 +57,7 @@ class SupabaseService {
       name: (user.userMetadata?['name'] as String?) ?? 'Usuario',
       email: user.email ?? '',
       phone: (user.userMetadata?['phone'] as String?) ?? '',
+      avatarUrl: (user.userMetadata?['avatar_url'] as String?) ?? '',
     );
   }
 
@@ -149,22 +153,72 @@ class SupabaseService {
     }
   }
 
+  /// Sube la foto de perfil del usuario a Supabase Storage y actualiza la tabla profiles.
+  Future<String?> uploadAvatar(Uint8List bytes) async {
+    final user = currentUser;
+    if (user == null) return null;
+
+    try {
+      final fileName = 'avatar_${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final path = 'avatars/$fileName';
+
+      await _client.storage.from('apartments').uploadBinary(
+        path,
+        bytes,
+        fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+      );
+
+      final publicUrl = _client.storage.from('apartments').getPublicUrl(path);
+
+      await _client.from('profiles').update({
+        'avatar_url': publicUrl,
+      }).eq('id', user.id);
+
+      return publicUrl;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Actualiza los datos del perfil en Supabase.
+  Future<String?> updateProfile(UserProfile profile) async {
+    final user = currentUser;
+    if (user == null) return 'No hay sesión activa.';
+
+    try {
+      await _client.from('profiles').update({
+        'name': profile.name,
+        'phone': profile.phone,
+        'city': profile.city,
+        'avatar_url': profile.avatarUrl,
+      }).eq('id', user.id);
+      return null;
+    } catch (e) {
+      return 'Error al actualizar perfil: $e';
+    }
+  }
+
   // ------------------------------------------------------------------
   // Departamentos
   // ------------------------------------------------------------------
 
-  /// Descarga los departamentos desde Supabase.
+  /// Descarga los departamentos desde Supabase incluyendo sus fotos.
   Future<List<Apartment>> fetchApartments() async {
     try {
       final data = await _client
           .from('apartments')
-          .select('*, profiles:owner_id(name)')
+          .select('*, profiles:owner_id(name), apartment_images(image_url, order_index)')
           .order('created_at', ascending: false);
 
       return (data as List).map((row) {
         final hostName = (row['profiles'] != null && row['profiles']['name'] != null)
             ? row['profiles']['name'] as String
             : 'Propietario';
+
+        final imagesRaw = (row['apartment_images'] as List?) ?? [];
+        imagesRaw.sort((a, b) => ((a['order_index'] ?? 0) as int)
+            .compareTo((b['order_index'] ?? 0) as int));
+        final images = imagesRaw.map((img) => img['image_url'] as String).toList();
 
         return Apartment(
           id: row['id'] as String,
@@ -184,6 +238,7 @@ class SupabaseService {
           ),
           rating: (row['rating'] as num?)?.toDouble() ?? 0.0,
           hostName: hostName,
+          images: images,
         );
       }).toList();
     } catch (_) {
@@ -191,13 +246,13 @@ class SupabaseService {
     }
   }
 
-  /// Inserta un departamento en Supabase.
-  Future<String?> insertApartment(Apartment a) async {
+  /// Inserta un departamento en Supabase y sube sus fotos si las hay.
+  Future<String?> insertApartment(Apartment a, {List<Uint8List>? newImageBytes}) async {
     final user = currentUser;
     if (user == null) return 'Debes iniciar sesión para publicar.';
 
     try {
-      await _client.from('apartments').insert({
+      final res = await _client.from('apartments').insert({
         'owner_id': user.id,
         'title': a.title,
         'description': a.description,
@@ -207,7 +262,27 @@ class SupabaseService {
         'latitude': a.point.lat,
         'longitude': a.point.lng,
         'status': a.status.name,
-      });
+      }).select('id').single();
+
+      final apartmentId = res['id'] as String;
+
+      if (newImageBytes != null && newImageBytes.isNotEmpty) {
+        for (var i = 0; i < newImageBytes.length; i++) {
+          final fileName = '$apartmentId-${DateTime.now().millisecondsSinceEpoch}-$i.jpg';
+          final path = '$apartmentId/$fileName';
+          await _client.storage.from('apartments').uploadBinary(
+            path,
+            newImageBytes[i],
+            fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+          );
+          final publicUrl = _client.storage.from('apartments').getPublicUrl(path);
+          await _client.from('apartment_images').insert({
+            'apartment_id': apartmentId,
+            'image_url': publicUrl,
+            'order_index': i,
+          });
+        }
+      }
       return null;
     } catch (e) {
       return 'Error al guardar el departamento: $e';

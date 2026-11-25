@@ -7,6 +7,7 @@ class UserProfile {
   final String email;
   final String phone;
   final String city;
+  final String avatarUrl;
 
   const UserProfile({
     required this.id,
@@ -15,6 +16,7 @@ class UserProfile {
     required this.email,
     this.phone = '',
     this.city = '',
+    this.avatarUrl = '',
   });
 
   /// Perfil vacío usado cuando no hay sesión (p. ej. al cerrar sesión).
@@ -23,6 +25,7 @@ class UserProfile {
     role: UserRole.rentador,
     name: '',
     email: '',
+    avatarUrl: '',
   );
 
   UserProfile copyWith({
@@ -31,6 +34,7 @@ class UserProfile {
     String? email,
     String? phone,
     String? city,
+    String? avatarUrl,
   }) =>
       UserProfile(
         id: id,
@@ -39,5 +43,6 @@ class UserProfile {
         email: email ?? this.email,
         phone: phone ?? this.phone,
         city: city ?? this.city,
+        avatarUrl: avatarUrl ?? this.avatarUrl,
       );
 }

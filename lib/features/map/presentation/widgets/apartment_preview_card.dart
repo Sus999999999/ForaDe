@@ -4,6 +4,7 @@ import '../../../../core/state/app_scope.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../apartments/domain/models/apartment.dart';
+import '../../../apartments/presentation/widgets/apartment_image.dart';
 import '../../../apartments/presentation/widgets/rating_stars.dart';
 
 /// Tarjeta inferior del mapa: espacio de foto, título, zona, precio y estrellas.
@@ -40,8 +41,17 @@ class ApartmentPreviewCard extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                // Espacio de la foto (en blanco hasta que haya imágenes).
-                const SizedBox(width: 104, height: 104),
+                SizedBox(
+                  width: 104,
+                  height: 104,
+                  child: ApartmentImage(
+                    seed: apartment.id,
+                    imageUrl: apartment.images.isNotEmpty
+                        ? apartment.images.first
+                        : null,
+                    radius: 12,
+                  ),
+                ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
