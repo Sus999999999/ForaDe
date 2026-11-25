@@ -1,30 +1,30 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'user_avatar.dart';
 
 class HostInfo extends StatelessWidget {
   final String name;
   final String subtitle;
   final String prefix;
+  final String avatarUrl;
+
   const HostInfo({
     super.key,
     required this.name,
     required this.subtitle,
     this.prefix = 'Publicado por ',
+    this.avatarUrl = '',
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // Círculo vacío (espacio de la foto de perfil).
-        Container(
-          width: 54,
-          height: 54,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.border, width: 1.4),
-          ),
+        UserAvatar(
+          avatarUrl: avatarUrl,
+          name: name,
+          size: 54,
         ),
         const SizedBox(width: 14),
         Expanded(

@@ -277,6 +277,10 @@ class AppState extends ChangeNotifier {
           ..clear()
           ..addAll(remoteApts);
       }
+      if (_currentUser != null) {
+        await _loadFavoritesFromSupabase();
+      }
+      await autoRestoreLocation();
       notifyListeners();
     } catch (_) {}
   }
@@ -304,6 +308,8 @@ class AppState extends ChangeNotifier {
             ..clear()
             ..addAll(remoteApts);
         }
+        await _loadFavoritesFromSupabase();
+        await autoRestoreLocation();
         notifyListeners();
         return null;
       }
@@ -388,6 +394,7 @@ class AppState extends ChangeNotifier {
     }
 
     _resetSession();
+    await autoRestoreLocation();
     notifyListeners();
     return null;
   }
@@ -395,6 +402,8 @@ class AppState extends ChangeNotifier {
   Future<void> logout() async {
     await SupabaseService.instance.signOut();
     _currentUser = null;
+    _favorites.clear();
+    _userLocation = null;
     _resetSession();
     notifyListeners();
   }
@@ -462,6 +471,14 @@ class AppState extends ChangeNotifier {
     if (point == null) return false;
     _userLocation = point;
     notifyListeners();
+    return true;
+  }
+
+  /// Restaura automáticamente la ubicación si el usuario ya otorgó permisos previamente en el dispositivo.
+  Future<bool> autoRestoreLocation() async {
+    final point = await _locationService.currentLocation(requestPermissionIfNeeded: false);
+    if (point == null) return false;
+    _userLocation = point;
     return true;
   }
 
@@ -655,11 +672,27 @@ class AppState extends ChangeNotifier {
     return added;
   }
 
+  Future<void> _loadFavoritesFromSupabase() async {
+    final user = _currentUser;
+    if (user == null) return;
+    try {
+      final favIds = await SupabaseService.instance.fetchFavoriteApartmentIds();
+      _favorites
+        ..removeWhere((f) => f.userId == user.id)
+        ..addAll(favIds.map((id) => Favorite(
+              userId: user.id,
+              apartmentId: id,
+              createdAt: DateTime.now(),
+            )));
+    } catch (_) {}
+  }
+
   void clearFavorites() {
     final user = _currentUser;
     if (user == null) return;
     _favorites.removeWhere((f) => f.userId == user.id);
     notifyListeners();
+    SupabaseService.instance.clearFavorites();
   }
 
   // ------------------------------------------------------------------
@@ -704,6 +737,7 @@ class AppState extends ChangeNotifier {
       point: point,
       status: status,
       hostName: user.name,
+      hostAvatarUrl: user.avatarUrl,
       hostSubtitle: 'Propietario',
     );
 
@@ -977,6 +1011,7 @@ class AppState extends ChangeNotifier {
       if (i >= 0) {
         _users[i] = _currentUser!;
       }
+      _syncHostAvatar(_currentUser!.id, url);
       notifyListeners();
     }
     return url;
@@ -1027,6 +1062,15 @@ class AppState extends ChangeNotifier {
       final a = _apartments[i];
       if (a.ownerId == userId && a.hostName != name) {
         _apartments[i] = a.copyWith(hostName: name);
+      }
+    }
+  }
+
+  void _syncHostAvatar(String userId, String avatarUrl) {
+    for (var i = 0; i < _apartments.length; i++) {
+      final a = _apartments[i];
+      if (a.ownerId == userId && a.hostAvatarUrl != avatarUrl) {
+        _apartments[i] = a.copyWith(hostAvatarUrl: avatarUrl);
       }
     }
   }

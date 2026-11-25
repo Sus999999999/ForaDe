@@ -1,20 +1,28 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/user_avatar.dart';
 
 class HostInfo extends StatelessWidget {
   final String name;
   final String subtitle;
-  const HostInfo({super.key, required this.name, required this.subtitle});
+  final String avatarUrl;
+
+  const HostInfo({
+    super.key,
+    required this.name,
+    required this.subtitle,
+    this.avatarUrl = '',
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const CircleAvatar(
-          radius: 20,
-          backgroundColor: AppColors.muted,
-          child: Icon(Icons.person, color: Colors.white),
+        UserAvatar(
+          avatarUrl: avatarUrl,
+          name: name,
+          size: 54,
         ),
         const SizedBox(width: 12),
         Column(

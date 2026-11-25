@@ -125,6 +125,7 @@ class _ContactScreenState extends State<ContactScreen> {
               name: a.hostName,
               subtitle: a.hostSubtitle,
               prefix: 'Para ',
+              avatarUrl: a.hostAvatarUrl,
             ),
             const Divider(height: 36, color: AppColors.divider),
             const SectionLabel('MENSAJE'),

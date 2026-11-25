@@ -183,7 +183,11 @@ class ApartmentDetailScreen extends StatelessWidget {
                     ],
                   ),
                   const Divider(height: 34, color: AppColors.divider),
-                  HostInfo(name: a.hostName, subtitle: a.hostSubtitle),
+                  HostInfo(
+                    name: a.hostName,
+                    subtitle: a.hostSubtitle,
+                    avatarUrl: a.hostAvatarUrl,
+                  ),
                   const SizedBox(height: 26),
                   const SectionLabel('Descripción'),
                   const SizedBox(height: 10),

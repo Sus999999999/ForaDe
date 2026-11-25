@@ -207,13 +207,16 @@ class SupabaseService {
     try {
       final data = await _client
           .from('apartments')
-          .select('*, profiles:owner_id(name), apartment_images(image_url, order_index)')
+          .select('*, profiles:owner_id(name, avatar_url), apartment_images(image_url, order_index)')
           .order('created_at', ascending: false);
 
       return (data as List).map((row) {
         final hostName = (row['profiles'] != null && row['profiles']['name'] != null)
             ? row['profiles']['name'] as String
             : 'Propietario';
+        final hostAvatarUrl = (row['profiles'] != null && row['profiles']['avatar_url'] != null)
+            ? (row['profiles']['avatar_url'] as String?) ?? ''
+            : '';
 
         final imagesRaw = (row['apartment_images'] as List?) ?? [];
         imagesRaw.sort((a, b) => ((a['order_index'] ?? 0) as int)
@@ -238,6 +241,7 @@ class SupabaseService {
           ),
           rating: (row['rating'] as num?)?.toDouble() ?? 0.0,
           hostName: hostName,
+          hostAvatarUrl: hostAvatarUrl,
           images: images,
         );
       }).toList();
@@ -329,10 +333,16 @@ class SupabaseService {
     }
   }
 
+  static final _uuidPattern = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
+  bool _isUuid(String value) => _uuidPattern.hasMatch(value);
+
   /// Alterna un favorito en Supabase.
   Future<bool> toggleFavorite(String apartmentId) async {
     final user = currentUser;
-    if (user == null) return false;
+    if (user == null || !_isUuid(apartmentId)) return false;
 
     try {
       final existing = await _client
@@ -355,5 +365,15 @@ class SupabaseService {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Elimina todos los favoritos del usuario en Supabase.
+  Future<void> clearFavorites() async {
+    final user = currentUser;
+    if (user == null) return;
+
+    try {
+      await _client.from('favorites').delete().eq('user_id', user.id);
+    } catch (_) {}
   }
 }

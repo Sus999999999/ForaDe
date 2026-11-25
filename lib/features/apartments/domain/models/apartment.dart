@@ -22,6 +22,7 @@ class Apartment {
   final ApartmentStatus status;
   final double rating; // 0 = sin calificaciones (nuevo)
   final String hostName;
+  final String hostAvatarUrl;
   final String hostSubtitle;
   final List<String> images;
 
@@ -35,6 +36,7 @@ class Apartment {
     required this.description,
     required this.price,
     required this.hostName,
+    this.hostAvatarUrl = '',
     this.status = ApartmentStatus.disponible,
     this.rating = 0,
     this.hostSubtitle = 'Propietario verificado',
@@ -57,6 +59,8 @@ class Apartment {
     Money? price,
     ApartmentStatus? status,
     String? hostName,
+    String? hostAvatarUrl,
+    String? hostSubtitle,
     List<String>? images,
   }) =>
       Apartment(
@@ -71,7 +75,8 @@ class Apartment {
         status: status ?? this.status,
         rating: rating,
         hostName: hostName ?? this.hostName,
-        hostSubtitle: hostSubtitle,
+        hostAvatarUrl: hostAvatarUrl ?? this.hostAvatarUrl,
+        hostSubtitle: hostSubtitle ?? this.hostSubtitle,
         images: images ?? this.images,
       );
 }
