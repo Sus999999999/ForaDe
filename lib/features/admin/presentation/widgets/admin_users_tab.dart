@@ -6,11 +6,12 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/snackbar.dart';
 import '../../../../shared/widgets/confirm_dialog.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../auth/domain/models/user_role.dart';
 import '../../../auth/presentation/widgets/role_badge.dart';
 import '../../../profile/domain/models/user_profile.dart';
 
 /// Pestaña de administración de usuarios:
-/// Muestra los 15 más recientes al entrar (incluyendo el perfil simulado de administrador),
+/// Muestra los 15 más recientes al entrar,
 /// permite buscar con una barra de búsqueda, y permite editar o eliminar cuentas.
 class AdminUsersTab extends StatefulWidget {
   const AdminUsersTab({super.key});
@@ -32,10 +33,10 @@ class _AdminUsersTabState extends State<AdminUsersTab> {
   Future<void> _delete(BuildContext context, UserProfile user) async {
     final state = AppScope.read(context);
 
-    if (user.id == state.profile.id || user.id == 'u-admin') {
+    if (user.id == state.profile.id) {
       showAppSnackBar(
         context,
-        'No puedes eliminar la cuenta de administrador',
+        'No puedes eliminar tu propia cuenta de administrador',
         icon: Icons.info_outline,
       );
       return;
@@ -161,7 +162,9 @@ class _AdminUsersTabState extends State<AdminUsersTab> {
                       const Divider(height: 1, color: AppColors.divider),
                   itemBuilder: (_, i) {
                     final u = displayed[i];
-                    final isSelf = u.id == myId || u.id == 'u-admin';
+                    final isSelf = u.id == myId;
+                    final isAdmin = u.role == UserRole.administrador;
+                    final canDelete = !isSelf && !isAdmin;
                     final initial = u.name.isEmpty ? '?' : u.name[0].toUpperCase();
 
                     return ListTile(
@@ -217,11 +220,11 @@ class _AdminUsersTabState extends State<AdminUsersTab> {
                             tooltip: 'Eliminar',
                             icon: Icon(
                               Icons.delete_outline,
-                              color: isSelf
-                                  ? AppColors.muted.withValues(alpha: 0.3)
-                                  : AppColors.muted,
+                              color: canDelete
+                                  ? AppColors.muted
+                                  : AppColors.muted.withValues(alpha: 0.3),
                             ),
-                            onPressed: isSelf ? null : () => _delete(context, u),
+                            onPressed: canDelete ? () => _delete(context, u) : null,
                           ),
                         ],
                       ),

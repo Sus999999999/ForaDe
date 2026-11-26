@@ -52,17 +52,23 @@ class ApartmentDetailScreen extends StatelessWidget {
     if (state.isAdmin || a.ownerId == state.profile.id) {
       return Row(
         children: [
-          OutlinedActionButton(
-            label: 'Eliminar',
-            height: 58,
-            borderColor: const Color(0xFFD32F2F),
-            textColor: const Color(0xFFD32F2F),
-            onPressed: () => _delete(context, a),
+          Expanded(
+            flex: 2,
+            child: OutlinedActionButton(
+              label: 'Eliminar',
+              expand: false,
+              height: 58,
+              borderColor: const Color(0xFFD32F2F),
+              textColor: const Color(0xFFD32F2F),
+              onPressed: () => _delete(context, a),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
+            flex: 3,
             child: PrimaryButton(
               label: 'Editar departamento',
+              expand: false,
               onPressed: () => Navigator.of(context)
                   .pushNamed(AppRoutes.apartmentForm, arguments: a),
             ),

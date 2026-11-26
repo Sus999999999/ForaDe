@@ -33,6 +33,19 @@ class SupabaseService {
           .maybeSingle();
 
       if (data != null) {
+        final emailFromDb = (data['email'] as String?) ?? '';
+        final effectiveEmail =
+            emailFromDb.isNotEmpty ? emailFromDb : (user.email ?? '');
+
+        // Sincronizar el correo en la tabla profiles si falta en la base de datos
+        if (emailFromDb.isEmpty && user.email != null && user.email!.isNotEmpty) {
+          try {
+            await _client.from('profiles').update({
+              'email': user.email,
+            }).eq('id', user.id);
+          } catch (_) {}
+        }
+
         return UserProfile(
           id: data['id'] as String,
           role: UserRole.values.firstWhere(
@@ -40,7 +53,7 @@ class SupabaseService {
             orElse: () => UserRole.rentador,
           ),
           name: (data['name'] as String?) ?? 'Usuario',
-          email: user.email ?? '',
+          email: effectiveEmail,
           phone: (data['phone'] as String?) ?? '',
           city: (data['city'] as String?) ?? '',
           avatarUrl: (data['avatar_url'] as String?) ?? '',
@@ -106,6 +119,13 @@ class SupabaseService {
       if (res.user == null) {
         return 'No se pudo crear la cuenta.';
       }
+
+      // Guardar el correo también en la tabla profiles para que el admin pueda verlo
+      try {
+        await _client.from('profiles').update({
+          'email': email.trim(),
+        }).eq('id', res.user!.id);
+      } catch (_) {}
 
       // Si Supabase no otorgó sesión directa (por tener Confirm Email activado)
       if (res.session == null) {
@@ -182,9 +202,14 @@ class SupabaseService {
   }
 
   /// Actualiza los datos del perfil en Supabase.
-  Future<String?> updateProfile(UserProfile profile) async {
+  /// Cuando se llama desde el panel de administración el [adminOverride] es true
+  /// y se usa el id del perfil editado en lugar del usuario autenticado.
+  Future<String?> updateProfile(UserProfile profile,
+      {bool adminOverride = false}) async {
     final user = currentUser;
     if (user == null) return 'No hay sesión activa.';
+
+    final targetId = adminOverride ? profile.id : user.id;
 
     try {
       await _client.from('profiles').update({
@@ -192,7 +217,9 @@ class SupabaseService {
         'phone': profile.phone,
         'city': profile.city,
         'avatar_url': profile.avatarUrl,
-      }).eq('id', user.id);
+        'role': profile.role.name,
+        if (profile.email.isNotEmpty) 'email': profile.email,
+      }).eq('id', targetId);
       return null;
     } catch (e) {
       return 'Error al actualizar perfil: $e';

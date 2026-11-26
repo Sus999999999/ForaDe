@@ -37,9 +37,7 @@ class AppState extends ChangeNotifier {
 
   final LocationService _locationService;
 
-  /// Contraseña de TODAS las cuentas de ejemplo (solo para demostración):
-  /// carlos.r@correo.com, ana.m@correo.com, luis.g@correo.com,
-  /// sofia.p@correo.com (renteros), diego.t@correo.com (rentador) y
+  /// Contraseña de las cuentas de demo local (solo para desarrollo):
   /// admin@forade.com (administrador).
   static const demoPassword = 'Forade2026';
 
@@ -50,25 +48,31 @@ class AppState extends ChangeNotifier {
   static const _maxRecoveryAttempts = 5;
 
   // ------------------------------------------------------------------
-  // Datos de usuario administrador
+  // Usuarios registrados
   // ------------------------------------------------------------------
-  final List<UserProfile> _users = [
-    const UserProfile(
-      id: 'u-admin',
-      role: UserRole.administrador,
-      name: 'Administrador General',
-      email: 'admin@forade.com',
-      city: 'Ciudad de México',
-    ),
-  ];
+  final List<UserProfile> _users = [];
 
   /// Credenciales: id de usuario -> hash PBKDF2 (nunca la contraseña).
   final Map<String, String> _credentials = {};
 
-  /// Cuentas cuyo hash se calcula la primera vez que se necesita
-  final Set<String> _seedUserIds = {
-    'u-admin',
-  };
+  /// Cuentas cuyo hash se calcula la primera vez que se necesita (local demo)
+  final Set<String> _seedUserIds = {'u-admin'};
+
+  /// Perfil local del administrador (solo para autenticación local; no aparece
+  /// en la lista de usuarios del panel de administración).
+  static const _localAdminProfile = UserProfile(
+    id: 'u-admin',
+    role: UserRole.administrador,
+    name: 'Administrador',
+    email: 'admin@forade.com',
+    city: 'Ciudad de México',
+  );
+
+  /// Busca un usuario por correo incluyendo el admin local.
+  UserProfile? _findLocalUser(String lowerEmail) {
+    if (lowerEmail == 'admin@forade.com') return _localAdminProfile;
+    return null;
+  }
 
   final Map<String, int> _failedLogins = {};
   final Map<String, DateTime> _lockedUntil = {};
@@ -105,6 +109,7 @@ class AppState extends ChangeNotifier {
   bool get canChat => role == UserRole.rentero || role == UserRole.rentador;
 
   UserProfile? _userByEmail(String lowerEmail) {
+    if (lowerEmail.isEmpty) return null;
     for (final u in _users) {
       if (u.email.trim().toLowerCase() == lowerEmail) return u;
     }
@@ -161,27 +166,28 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// Carga perfiles remotos desde Supabase y los une al perfil de admin simulado.
+  /// Carga perfiles remotos desde Supabase y los sincroniza con la sesión local.
   Future<void> fetchRemoteProfiles() async {
     try {
       final remote = await SupabaseService.instance.fetchProfiles();
-      final admin = _users.firstWhere(
-        (u) => u.id == 'u-admin',
-        orElse: () => const UserProfile(
-          id: 'u-admin',
-          role: UserRole.administrador,
-          name: 'Administrador General',
-          email: 'admin@forade.com',
-          city: 'Ciudad de México',
-        ),
-      );
+      final current = _currentUser;
       _users
         ..clear()
-        ..add(admin);
-      for (final p in remote) {
-        if (p.id != 'u-admin' && !_users.any((u) => u.id == p.id)) {
-          _users.add(p);
-        }
+        ..addAll(remote.map((p) {
+          // Si es el usuario actualmente autenticado y su correo remoto está vacío,
+          // preservar el correo real provisto por la sesión de Auth.
+          if (current != null &&
+              p.id == current.id &&
+              current.email.isNotEmpty &&
+              p.email.isEmpty) {
+            return p.copyWith(email: current.email);
+          }
+          return p;
+        }));
+      // Si el usuario actual no figura en la lista remota (p. ej. recién registrado o RLS temporal),
+      // asegurarnos de incluirlo al inicio.
+      if (current != null && !_users.any((u) => u.id == current.id)) {
+        _users.insert(0, current);
       }
       notifyListeners();
     } catch (_) {}
@@ -229,7 +235,8 @@ class AppState extends ChangeNotifier {
       _failedLogins.remove(key);
     }
 
-    final user = _userByEmail(key);
+    // Buscar primero en los perfiles locales (admin local hardcodeado)
+    final user = _findLocalUser(key) ?? _userByEmail(key);
     final credential = user == null ? null : _credentialOf(user.id);
     final ok = user != null &&
         credential != null &&
@@ -998,22 +1005,34 @@ class AppState extends ChangeNotifier {
       return 'No tienes permiso para editar este usuario.';
     }
     final invalid = Validators.name(updated.name) ??
-        Validators.email(updated.email);
+        (updated.email.trim().isNotEmpty ? Validators.email(updated.email) : null);
     if (invalid != null) return invalid;
-    final dup = _userByEmail(updated.email.trim().toLowerCase());
-    if (dup != null && dup.id != updated.id) {
-      return 'Ya existe una cuenta con ese correo.';
+    if (updated.email.trim().isNotEmpty) {
+      final dup = _userByEmail(updated.email.trim().toLowerCase());
+      if (dup != null && dup.id != updated.id) {
+        return 'Ya existe una cuenta con ese correo.';
+      }
     }
 
     final canChangeRole = isAdmin && updated.id != me.id;
+    // No se permite otorgar el rol de administrador desde la aplicación
+    final nextRole = (updated.role == UserRole.administrador &&
+            _users[i].role != UserRole.administrador)
+        ? _users[i].role
+        : (canChangeRole ? updated.role : _users[i].role);
+
     final next = updated.copyWith(
-      role: canChangeRole ? updated.role : _users[i].role,
+      role: nextRole,
     );
     _users[i] = next;
     if (_currentUser?.id == next.id) _currentUser = next;
     _syncHostName(next.id, next.name);
     notifyListeners();
-    SupabaseService.instance.updateProfile(next);
+    // Si el admin edita a otro usuario, usar adminOverride para guardar por id del perfil editado
+    SupabaseService.instance.updateProfile(
+      next,
+      adminOverride: isAdmin && next.id != me.id,
+    );
     return null;
   }
 
@@ -1034,9 +1053,13 @@ class AppState extends ChangeNotifier {
 
   /// Elimina un usuario (solo administrador). Sus departamentos pasan a
   /// Inactivo (baja lógica) y se conservan los favoritos de otras personas.
-  /// Devuelve false si se intenta borrar la cuenta con la sesión activa o el perfil simulado de administrador.
+  /// No se puede eliminar la propia sesión ni a otro administrador.
   Future<bool> deleteUser(String id) async {
-    if (!isAdmin || id == _currentUser?.id || id == 'u-admin') return false;
+    if (!isAdmin || id == _currentUser?.id) return false;
+    // Proteger a otros administradores
+    final target = _users.firstWhere((u) => u.id == id,
+        orElse: () => UserProfile.guest);
+    if (target.role == UserRole.administrador) return false;
     _retireUser(id);
     notifyListeners();
     await SupabaseService.instance.deleteProfile(id);

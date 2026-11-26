@@ -52,7 +52,9 @@ class _EditUserScreenState extends State<EditUserScreen> {
   String? get _emailError {
     if (!_showErrors) return null;
     final v = _email.text.trim();
-    if (v.isEmpty) return 'Campo obligatorio';
+    // El correo puede estar vacío si el perfil remoto no lo tiene aún;
+    // en ese caso lo permitimos para no bloquear la edición.
+    if (v.isEmpty) return null;
     if (!v.contains('@') || !v.contains('.')) return 'Correo no válido';
     return null;
   }
@@ -61,8 +63,14 @@ class _EditUserScreenState extends State<EditUserScreen> {
     setState(() => _showErrors = true);
     if (_nameError != null || _emailError != null) return;
 
+    // Solo conservar administrador si el usuario ya lo era;
+    // nunca permitir otorgar el rol de administrador desde la interfaz.
+    final targetRole = widget.user.role == UserRole.administrador
+        ? UserRole.administrador
+        : (_role == UserRole.administrador ? widget.user.role : _role);
+
     final error = AppScope.read(context).updateUser(widget.user.copyWith(
-      role: _role,
+      role: targetRole,
       name: _name.text.trim(),
       email: _email.text.trim(),
       phone: _phone.text.trim(),
@@ -79,8 +87,6 @@ class _EditUserScreenState extends State<EditUserScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isSelf = AppScope.of(context).profile.id == widget.user.id;
-
     return Scaffold(
       appBar: const TitleAppBar(title: 'Editar usuario'),
       body: SingleChildScrollView(
@@ -121,31 +127,59 @@ class _EditUserScreenState extends State<EditUserScreen> {
             const SizedBox(height: 15),
             const SectionLabel('TIPO DE USUARIO'),
             const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<UserRole>(
-                showSelectedIcon: false,
-                segments: [
-                  for (final r in UserRole.values)
-                    ButtonSegment<UserRole>(
-                      value: r,
-                      label: Text(r.label, style: const TextStyle(fontSize: 12)),
+            if (widget.user.role == UserRole.administrador) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceSoft,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.shield_outlined, color: AppColors.blue, size: 20),
+                    SizedBox(width: 10),
+                    Text(
+                      'Administrador',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.text,
+                        fontSize: 14,
+                      ),
                     ),
-                ],
-                selected: {_role},
-                // null = deshabilitado (no puedes quitarte el rol de admin)
-                onSelectionChanged:
-                    isSelf ? null : (s) => setState(() => _role = s.first),
+                  ],
+                ),
               ),
-            ),
-            if (isSelf)
               const Padding(
                 padding: EdgeInsets.only(top: 6),
                 child: Text(
-                  'No puedes cambiar tu propio tipo de usuario.',
+                  'El rol de administrador no se puede otorgar ni modificar desde aquí.',
                   style: TextStyle(fontSize: 12, color: AppColors.muted),
                 ),
               ),
+            ] else ...[
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<UserRole>(
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment<UserRole>(
+                      value: UserRole.rentero,
+                      label: Text('Rentero', style: TextStyle(fontSize: 13)),
+                    ),
+                    ButtonSegment<UserRole>(
+                      value: UserRole.rentador,
+                      label: Text('Rentador', style: TextStyle(fontSize: 13)),
+                    ),
+                  ],
+                  selected: {
+                    _role == UserRole.administrador ? UserRole.rentero : _role
+                  },
+                  onSelectionChanged: (s) => setState(() => _role = s.first),
+                ),
+              ),
+            ],
             const SizedBox(height: 25),
             PrimaryButton(label: 'Guardar cambios', onPressed: _save),
           ],
