@@ -9,6 +9,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/utils/snackbar.dart';
 import '../../../../shared/widgets/bottom_action_bar.dart';
+import '../../../../shared/widgets/confirm_dialog.dart';
 import '../../../../shared/widgets/host_info.dart';
 import '../../../../shared/widgets/outlined_action_button.dart';
 import '../../../../shared/widgets/primary_button.dart';
@@ -24,18 +25,49 @@ class ApartmentDetailScreen extends StatelessWidget {
   final Apartment apartment;
   const ApartmentDetailScreen({super.key, required this.apartment});
 
-  Widget _action(BuildContext context, AppState state, Apartment a) {
-    // El administrador gestiona cuentas: aquí solo consulta.
-    if (state.isAdmin) {
-      return _InfoBox(
-          label: 'Vista de administrador · ${a.status.label}');
+  Future<void> _delete(BuildContext context, Apartment a) async {
+    final ok = await confirmDialog(
+      context,
+      title: 'Eliminar departamento',
+      message:
+          '¿Seguro que deseas eliminar "${a.title}"? Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar',
+    );
+    if (!ok || !context.mounted) return;
+
+    final err = await AppScope.read(context).deleteApartment(a.id);
+    if (!context.mounted) return;
+    if (err != null) {
+      showAppSnackBar(context, err, icon: Icons.error_outline);
+    } else {
+      Navigator.of(context).pop();
+      showAppSnackBar(context, 'Departamento eliminado',
+          icon: Icons.check_circle);
     }
-    // Solo quien publicó puede editar.
-    if (a.ownerId == state.profile.id) {
-      return PrimaryButton(
-        label: 'Editar departamento',
-        onPressed: () => Navigator.of(context)
-            .pushNamed(AppRoutes.apartmentForm, arguments: a),
+  }
+
+  Widget _action(BuildContext context, AppState state, Apartment a) {
+    // El administrador puede editar y eliminar cualquier departamento;
+    // el rentero solo los suyos.
+    if (state.isAdmin || a.ownerId == state.profile.id) {
+      return Row(
+        children: [
+          OutlinedActionButton(
+            label: 'Eliminar',
+            height: 58,
+            borderColor: const Color(0xFFD32F2F),
+            textColor: const Color(0xFFD32F2F),
+            onPressed: () => _delete(context, a),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: PrimaryButton(
+              label: 'Editar departamento',
+              onPressed: () => Navigator.of(context)
+                  .pushNamed(AppRoutes.apartmentForm, arguments: a),
+            ),
+          ),
+        ],
       );
     }
     // Si ya hay una conversación con este rentero, se abre directamente.

@@ -88,10 +88,10 @@ class AppRoutes {
       case apartmentForm:
         final editing = s.arguments is Apartment ? s.arguments as Apartment : null;
         return page(guard(
-            const {UserRole.rentero}, ApartmentFormScreen(apartment: editing)));
+            const {UserRole.rentero, UserRole.administrador}, ApartmentFormScreen(apartment: editing)));
 
       case favorites:
-        return page(guard(_chatUsers, const FavoritesScreen()));
+        return page(guard(_anyUser, const FavoritesScreen()));
       case chats:
         return page(guard(_chatUsers, const ChatsScreen()));
       case chat:

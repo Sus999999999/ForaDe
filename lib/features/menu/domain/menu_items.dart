@@ -55,7 +55,7 @@ List<MenuItemData> menuItemsFor(UserRole? role) {
     ];
   }
   if (role == UserRole.administrador) {
-    return const [dashboard, apartments, map, admin, profile, settings];
+    return const [dashboard, apartments, map, favorites, admin, profile, settings];
   }
   return const [dashboard];
 }

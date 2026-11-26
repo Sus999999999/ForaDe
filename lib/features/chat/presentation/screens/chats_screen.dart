@@ -24,6 +24,16 @@ class _ChatsScreenState extends State<ChatsScreen> {
   _Box _box = _Box.all;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        AppScope.read(context).refreshChats();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final List<ChatConversation> chats = switch (_box) {
@@ -67,28 +77,37 @@ class _ChatsScreenState extends State<ChatsScreen> {
             ),
           ),
           Expanded(
-            child: chats.isEmpty
-                ? const EmptyState(
-                    icon: Icons.chat_bubble_outline,
-                    title: 'No tienes conversaciones',
-                    message:
-                        'Contacta a un publicador desde un departamento para iniciar una conversación. Las conversaciones se eliminan al finalizarlas.',
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.only(bottom: 24),
-                    itemCount: chats.length,
-                    separatorBuilder: (_, __) => const Divider(
-                        height: 1,
-                        indent: 20,
-                        endIndent: 20,
-                        color: AppColors.divider),
-                    itemBuilder: (_, i) => ConversationTile(
-                      chat: chats[i],
-                      onTap: () => Navigator.of(context).pushNamed(
-                          AppRoutes.chat,
-                          arguments: chats[i].id),
+            child: RefreshIndicator(
+              color: AppColors.orange,
+              onRefresh: () => AppScope.read(context).refreshChats(),
+              child: chats.isEmpty
+                  ? ListView(
+                      children: const [
+                        SizedBox(height: 80),
+                        EmptyState(
+                          icon: Icons.chat_bubble_outline,
+                          title: 'No tienes conversaciones',
+                          message:
+                              'Contacta a un publicador desde un departamento para iniciar una conversación. Las conversaciones se sincronizan en tiempo real.',
+                        ),
+                      ],
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      itemCount: chats.length,
+                      separatorBuilder: (_, __) => const Divider(
+                          height: 1,
+                          indent: 20,
+                          endIndent: 20,
+                          color: AppColors.divider),
+                      itemBuilder: (_, i) => ConversationTile(
+                        chat: chats[i],
+                        onTap: () => Navigator.of(context).pushNamed(
+                            AppRoutes.chat,
+                            arguments: chats[i].id),
+                      ),
                     ),
-                  ),
+            ),
           ),
         ],
       ),

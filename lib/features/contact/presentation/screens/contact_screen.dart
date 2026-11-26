@@ -25,6 +25,7 @@ class _ContactScreenState extends State<ContactScreen> {
   final TextEditingController _message = TextEditingController();
   bool _sharePhone = false;
   bool _showErrors = false;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -32,14 +33,16 @@ class _ContactScreenState extends State<ContactScreen> {
     super.dispose();
   }
 
-  void _send() {
+  Future<void> _send() async {
     setState(() => _showErrors = true);
-    if (_message.text.trim().isEmpty) return;
+    if (_message.text.trim().isEmpty || _isSubmitting) return;
 
+    setState(() => _isSubmitting = true);
     FocusScope.of(context).unfocus();
     final state = AppScope.read(context);
-    final chat = state.openChat(widget.apartment);
-    if (chat == null) {
+    final chat = await state.openChat(widget.apartment);
+    if (chat == null || !mounted) {
+      if (mounted) setState(() => _isSubmitting = false);
       showAppSnackBar(
           context, 'No puedes contactar al publicador de este departamento',
           icon: Icons.error_outline);
@@ -52,8 +55,9 @@ class _ContactScreenState extends State<ContactScreen> {
     final text = _sharePhone && phone.isNotEmpty
         ? '${_message.text.trim()}\n\nMi teléfono: $phone'
         : _message.text.trim();
-    state.sendMessage(chat.id, text);
+    await state.sendMessage(chat.id, text);
 
+    if (!mounted) return;
     Navigator.of(context)
         .pushReplacementNamed(AppRoutes.chat, arguments: chat.id);
   }
@@ -152,7 +156,10 @@ class _ContactScreenState extends State<ContactScreen> {
                 onChanged: (v) => setState(() => _sharePhone = v),
               ),
             const SizedBox(height: 20),
-            PrimaryButton(label: 'Enviar mensaje', onPressed: _send),
+            PrimaryButton(
+              label: _isSubmitting ? 'Enviando...' : 'Enviar mensaje',
+              onPressed: _isSubmitting ? null : _send,
+            ),
           ],
         ),
       ),

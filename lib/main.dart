@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'core/constants/supabase_constants.dart';
+import 'core/services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,6 +12,8 @@ Future<void> main() async {
     url: SupabaseConstants.url,
     anonKey: SupabaseConstants.anonKey,
   );
+
+  await NotificationService.instance.initialize();
 
   runApp(const ForadeApp());
 }

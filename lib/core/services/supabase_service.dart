@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/apartments/domain/models/apartment.dart';
 import '../../features/apartments/domain/models/apartment_status.dart';
 import '../../features/auth/domain/models/user_role.dart';
+import '../../features/chat/domain/models/chat_models.dart';
 import '../../features/profile/domain/models/user_profile.dart';
 import '../geo/geo_point.dart';
 import '../utils/money.dart';
@@ -198,6 +199,51 @@ class SupabaseService {
     }
   }
 
+  /// Obtiene los perfiles de todos los usuarios registrados (para administración).
+  Future<List<UserProfile>> fetchProfiles() async {
+    try {
+      dynamic data;
+      try {
+        data = await _client
+            .from('profiles')
+            .select()
+            .order('created_at', ascending: false);
+      } catch (_) {
+        data = await _client.from('profiles').select();
+      }
+
+      return (data as List).map((row) {
+        return UserProfile(
+          id: row['id'] as String,
+          role: UserRole.values.firstWhere(
+            (r) => r.name == row['role'],
+            orElse: () => UserRole.rentador,
+          ),
+          name: (row['name'] as String?) ?? 'Usuario',
+          email: (row['email'] as String?) ?? '',
+          phone: (row['phone'] as String?) ?? '',
+          city: (row['city'] as String?) ?? '',
+          avatarUrl: (row['avatar_url'] as String?) ?? '',
+        );
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Elimina un perfil de usuario de la tabla profiles.
+  Future<bool> deleteProfile(String profileId) async {
+    try {
+      if (_isUuid(profileId)) {
+        await _client.from('profiles').delete().eq('id', profileId);
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ------------------------------------------------------------------
   // Departamentos
   // ------------------------------------------------------------------
@@ -312,6 +358,20 @@ class SupabaseService {
     }
   }
 
+  /// Elimina un departamento en Supabase junto con sus imágenes y favoritos.
+  Future<String?> deleteApartment(String apartmentId) async {
+    try {
+      if (_isUuid(apartmentId)) {
+        await _client.from('apartment_images').delete().eq('apartment_id', apartmentId);
+        await _client.from('favorites').delete().eq('apartment_id', apartmentId);
+        await _client.from('apartments').delete().eq('id', apartmentId);
+      }
+      return null;
+    } catch (e) {
+      return 'Error al eliminar el departamento: $e';
+    }
+  }
+
   // ------------------------------------------------------------------
   // Favoritos
   // ------------------------------------------------------------------
@@ -374,6 +434,150 @@ class SupabaseService {
 
     try {
       await _client.from('favorites').delete().eq('user_id', user.id);
+    } catch (_) {}
+  }
+
+  // ------------------------------------------------------------------
+  // Mensajería en Tiempo Real (WebSockets) y Conversaciones
+  // ------------------------------------------------------------------
+
+  /// Descarga todas las conversaciones donde participa el usuario actual.
+  Future<List<ChatConversation>> fetchConversations() async {
+    final user = currentUser;
+    if (user == null) return [];
+
+    try {
+      final data = await _client
+          .from('chat_conversations')
+          .select('*, owner:profiles!owner_id(name, avatar_url), renter:profiles!renter_id(name, avatar_url)')
+          .or('owner_id.eq.${user.id},renter_id.eq.${user.id}')
+          .order('updated_at', ascending: false);
+
+      final conversations = <ChatConversation>[];
+      for (final row in (data as List)) {
+        final convId = row['id'] as String;
+        final msgsData = await _client
+            .from('chat_messages')
+            .select()
+            .eq('conversation_id', convId)
+            .order('created_at', ascending: true);
+
+        final messages = (msgsData as List)
+            .map((m) => ChatMessage.fromMap(m as Map<String, dynamic>))
+            .toList();
+
+        conversations.add(ChatConversation.fromMap(
+          row as Map<String, dynamic>,
+          messages: messages,
+        ));
+      }
+      return conversations;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Suscripción en tiempo real vía WebSockets a los mensajes de una conversación.
+  Stream<List<ChatMessage>> streamMessages(String conversationId) {
+    return _client
+        .from('chat_messages')
+        .stream(primaryKey: ['id'])
+        .eq('conversation_id', conversationId)
+        .order('created_at', ascending: true)
+        .map((rows) => rows.map((r) => ChatMessage.fromMap(r)).toList());
+  }
+
+  /// Envía un mensaje a la conversación y actualiza el timestamp de actividad.
+  Future<ChatMessage?> sendMessage({
+    required String conversationId,
+    required String text,
+  }) async {
+    final user = currentUser;
+    final body = text.trim();
+    if (user == null || body.isEmpty) return null;
+
+    try {
+      final res = await _client.from('chat_messages').insert({
+        'conversation_id': conversationId,
+        'sender_id': user.id,
+        'text': body,
+      }).select().single();
+
+      await _client.from('chat_conversations').update({
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', conversationId);
+
+      return ChatMessage.fromMap(res);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Abre una conversación existente o crea una nueva con el rentero.
+  Future<ChatConversation?> openOrCreateConversation({
+    required Apartment apartment,
+  }) async {
+    final user = currentUser;
+    if (user == null || user.id == apartment.ownerId) return null;
+
+    try {
+      final existing = await _client
+          .from('chat_conversations')
+          .select('*, owner:profiles!owner_id(name, avatar_url), renter:profiles!renter_id(name, avatar_url)')
+          .eq('apartment_id', apartment.id)
+          .eq('renter_id', user.id)
+          .maybeSingle();
+
+      if (existing != null) {
+        final convId = existing['id'] as String;
+        final msgsData = await _client
+            .from('chat_messages')
+            .select()
+            .eq('conversation_id', convId)
+            .order('created_at', ascending: true);
+
+        final messages = (msgsData as List)
+            .map((m) => ChatMessage.fromMap(m as Map<String, dynamic>))
+            .toList();
+
+        return ChatConversation.fromMap(existing, messages: messages);
+      }
+
+      final inserted = await _client.from('chat_conversations').insert({
+        'apartment_id': apartment.id,
+        'apartment_title': apartment.title,
+        'owner_id': apartment.ownerId,
+        'renter_id': user.id,
+      }).select('*, owner:profiles!owner_id(name, avatar_url), renter:profiles!renter_id(name, avatar_url)').single();
+
+      return ChatConversation.fromMap(inserted, messages: []);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Finaliza y elimina la conversación en Supabase (en cascada elimina los mensajes).
+  Future<bool> deleteConversation(String conversationId) async {
+    try {
+      await _client
+          .from('chat_conversations')
+          .delete()
+          .eq('id', conversationId);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Guarda o actualiza el token de notificaciones FCM en el perfil.
+  Future<void> saveFcmToken(String token) async {
+    final user = currentUser;
+    if (user == null || token.trim().isEmpty) return;
+
+    try {
+      await _client.from('profiles').update({
+        'fcm_token': token.trim(),
+      }).eq('id', user.id);
     } catch (_) {}
   }
 }

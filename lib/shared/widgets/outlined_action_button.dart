@@ -7,6 +7,8 @@ class OutlinedActionButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool expand;
   final double height;
+  final Color? borderColor;
+  final Color? textColor;
 
   const OutlinedActionButton({
     super.key,
@@ -14,16 +16,20 @@ class OutlinedActionButton extends StatelessWidget {
     this.onPressed,
     this.expand = true,
     this.height = 58,
+    this.borderColor,
+    this.textColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final effectiveBorderColor = borderColor ?? AppColors.blue;
+    final effectiveTextColor = textColor ?? AppColors.blue;
     return SizedBox(
       width: expand ? double.infinity : null,
       height: height,
       child: OutlinedButton(
         style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: AppColors.blue, width: 1.6),
+          side: BorderSide(color: effectiveBorderColor, width: 1.6),
           padding: const EdgeInsets.symmetric(horizontal: 22),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -32,9 +38,9 @@ class OutlinedActionButton extends StatelessWidget {
         onPressed: onPressed,
         child: Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 15,
-            color: AppColors.blue,
+            color: effectiveTextColor,
             fontWeight: FontWeight.w600,
           ),
         ),

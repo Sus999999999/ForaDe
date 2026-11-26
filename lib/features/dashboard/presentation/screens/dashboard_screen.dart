@@ -68,6 +68,8 @@ class DashboardScreen extends StatelessWidget {
             () => _go(context, AppRoutes.apartments)),
         QuickAction(
             Icons.map_outlined, 'Mapa', () => _go(context, AppRoutes.map)),
+        QuickAction(Icons.favorite_border, 'Favoritos',
+            () => _go(context, AppRoutes.favorites)),
       ];
       content = _adminSections(context, state);
     } else if (state.canPublish) {
@@ -277,6 +279,25 @@ class DashboardScreen extends StatelessWidget {
     int count(ApartmentStatus s) =>
         state.apartments.where((a) => a.status == s).length;
     return [
+      if (!state.locationEnabled) ...[
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const DashboardSectionHeader('Ubicación'),
+              DashboardHint(
+                icon: Icons.location_on_outlined,
+                message:
+                    'Activa tu ubicación para centrar el mapa y visualizar distancias en la plataforma.',
+                actionLabel: 'Activar ubicación',
+                onAction: () => _enableLocation(context),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ],
       StatRow(boxes: [
         StatBox(value: '${state.users.length}', label: 'Usuarios'),
         StatBox(value: '${state.apartments.length}', label: 'Departamentos'),

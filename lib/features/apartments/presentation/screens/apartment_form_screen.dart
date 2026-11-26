@@ -18,6 +18,7 @@ import '../../../../shared/widgets/title_app_bar.dart';
 import '../../../add_apartment/presentation/widgets/image_upload_box.dart';
 import '../../domain/models/apartment.dart';
 import '../../domain/models/apartment_status.dart';
+import '../widgets/address_autocomplete_field.dart';
 import '../widgets/location_picker.dart';
 import '../widgets/status_chip.dart';
 
@@ -172,6 +173,28 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
         icon: Icons.check_circle);
   }
 
+  Future<void> _delete(Apartment a) async {
+    final state = AppScope.read(context);
+    final ok = await confirmDialog(
+      context,
+      title: 'Eliminar departamento',
+      message:
+          '¿Seguro que quieres eliminar "${a.title}"? Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar',
+    );
+    if (!ok || !mounted) return;
+    setState(() => _saving = true);
+    final error = await state.deleteApartment(a.id);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (error != null) {
+      showAppSnackBar(context, error, icon: Icons.error_outline);
+      return;
+    }
+    popAndShowSnackBar(context, 'Departamento eliminado',
+        icon: Icons.check_circle);
+  }
+
   void _reactivate(Apartment a) {
     final error = AppScope.read(context).reactivateApartment(a.id);
     showAppSnackBar(
@@ -255,14 +278,14 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
     final current =
         original == null ? null : (state.apartmentById(original.id) ?? original);
 
-    // Solo el publicador puede editar su departamento.
-    if (current != null && current.ownerId != state.profile.id) {
+    // Solo el publicador o un administrador puede editar el departamento.
+    if (current != null && current.ownerId != state.profile.id && !state.isAdmin) {
       return const Scaffold(
         appBar: TitleAppBar(title: 'Editar departamento'),
         body: EmptyState(
           icon: Icons.lock_outline,
           title: 'Sin permiso',
-          message: 'Solo quien publicó el departamento puede editarlo.',
+          message: 'Solo quien publicó el departamento o un administrador puede editarlo.',
         ),
       );
     }
@@ -335,20 +358,67 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
                   const SizedBox(height: 22),
                   const SectionLabel('DIRECCIÓN EXACTA (PRIVADA)'),
                   const SizedBox(height: 8),
-                  AppTextField(
-                    hint: 'Calle, número y colonia',
+                  AddressAutocompleteField(
+                    hint: 'Escribe calle, número o colonia...',
                     controller: _address,
                     errorText: _required(_address),
                     onChanged: (_) => setState(() {}),
+                    onSuggestionSelected: (suggestion) {
+                      setState(() {
+                        _address.text = suggestion.addressLine;
+                        if (_zone.text.trim().isEmpty &&
+                            suggestion.zone.isNotEmpty) {
+                          _zone.text = suggestion.zone;
+                        }
+                        _point = suggestion.point;
+                      });
+                      showAppSnackBar(
+                        context,
+                        'Ubicación colocada en el mapa',
+                        icon: Icons.place,
+                      );
+                    },
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Solo la ves tú y las personas con las que ya estás en contacto. En las búsquedas se muestra una ubicación aproximada.',
+                    'Escribe para recibir sugerencias y posicionar el pin automáticamente. Solo la ves tú y las personas con las que estás en contacto.',
                     style: TextStyle(
                         fontSize: 12, height: 1.4, color: AppColors.muted),
                   ),
                   const SizedBox(height: 22),
-                  const SectionLabel('UBICACIÓN EN EL MAPA'),
+                  Row(
+                    children: [
+                      const SectionLabel('UBICACIÓN EN EL MAPA'),
+                      if (_point != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F5E9),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFA5D6A7)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.check_circle,
+                                  size: 12, color: Color(0xFF2E7D32)),
+                              SizedBox(width: 4),
+                              Text(
+                                'Pin colocado',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF2E7D32),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                   const SizedBox(height: 8),
                   LocationPicker(
                     value: _point,
@@ -356,6 +426,17 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
                         ? 'Toca el mapa para colocar el pin'
                         : null,
                     onChanged: (p) => setState(() => _point = p),
+                    onAddressResolved: (suggestion) {
+                      setState(() {
+                        if (_address.text.trim().isEmpty) {
+                          _address.text = suggestion.addressLine;
+                        }
+                        if (_zone.text.trim().isEmpty &&
+                            suggestion.zone.isNotEmpty) {
+                          _zone.text = suggestion.zone;
+                        }
+                      });
+                    },
                   ),
                   const SizedBox(height: 22),
                   const SectionLabel('ESTADO'),
@@ -367,6 +448,16 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
                       label: 'Desactivar departamento',
                       height: 50,
                       onPressed: () => _deactivate(current),
+                    ),
+                  ],
+                  if (current != null) ...[
+                    const SizedBox(height: 16),
+                    OutlinedActionButton(
+                      label: 'Eliminar departamento',
+                      height: 50,
+                      borderColor: const Color(0xFFD32F2F),
+                      textColor: const Color(0xFFD32F2F),
+                      onPressed: () => _delete(current),
                     ),
                   ],
                 ],

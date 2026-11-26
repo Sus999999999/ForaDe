@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/state/app_scope.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/user_avatar.dart';
 import '../../domain/models/chat_models.dart';
 import 'message_bubble.dart';
 
@@ -17,7 +18,12 @@ class ConversationTile extends StatelessWidget {
     final state = AppScope.of(context);
     final me = state.profile;
     final other = state.userById(chat.otherParticipantId(me.id));
-    final name = other?.name ?? 'Usuario';
+    final name = chat.otherParticipantName(me.id).isNotEmpty
+        ? chat.otherParticipantName(me.id)
+        : (other?.name ?? 'Usuario');
+    final avatarUrl = chat.otherParticipantAvatar(me.id).isNotEmpty
+        ? chat.otherParticipantAvatar(me.id)
+        : (other?.avatarUrl ?? '');
     final last = chat.lastMessage;
     final sent = chat.renterId == me.id;
     final preview = last == null
@@ -30,17 +36,10 @@ class ConversationTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: AppColors.uploadFill,
-              child: Text(
-                name.isEmpty ? '?' : name[0].toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.navy,
-                ),
-              ),
+            UserAvatar(
+              avatarUrl: avatarUrl,
+              name: name,
+              size: 48,
             ),
             const SizedBox(width: 14),
             Expanded(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../../../../core/state/app_scope.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/snackbar.dart';
@@ -8,6 +9,7 @@ import '../../../../shared/widgets/confirm_dialog.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/title_app_bar.dart';
 import '../../../auth/domain/models/user_role.dart';
+import '../../domain/models/chat_models.dart';
 import '../widgets/message_bubble.dart';
 
 enum _ChatAction { registerStay, endStay, endChat }
@@ -115,20 +117,20 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final me = state.profile;
     final other = state.userById(chat.otherParticipantId(me.id));
-    final otherName = other?.name ?? 'Usuario';
+    final otherName = chat.otherParticipantName(me.id).isNotEmpty
+        ? chat.otherParticipantName(me.id)
+        : (other?.name ?? 'Usuario');
 
     // Acciones de renta: solo para el rentero dueño del departamento.
     final apt = state.apartmentById(chat.apartmentId);
     final isOwner = me.id == chat.ownerId && apt != null;
     final activeStay = apt == null ? null : state.activeStayOf(apt.id);
     final canRegister = isOwner &&
-        other?.role == UserRole.rentador &&
+        (other?.role == UserRole.rentador || other == null) &&
         activeStay == null &&
         !apt.isInactive;
     final canEndStay =
         isOwner && activeStay != null && activeStay.renterId == chat.renterId;
-
-    final reversed = chat.messages.reversed.toList();
 
     return Scaffold(
       appBar: TitleAppBar(
@@ -213,22 +215,42 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           Expanded(
-            child: reversed.isEmpty
-                ? const Center(
+            child: StreamBuilder<List<ChatMessage>>(
+              stream: SupabaseService.instance.streamMessages(widget.chatId),
+              builder: (context, snapshot) {
+                final List<ChatMessage> displayMessages;
+                if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
+                  displayMessages = snapshot.data!;
+                  // Sincronizar copia en memoria
+                  chat.messages
+                    ..clear()
+                    ..addAll(displayMessages);
+                } else {
+                  displayMessages = chat.messages;
+                }
+
+                final reversed = displayMessages.reversed.toList();
+
+                if (reversed.isEmpty) {
+                  return const Center(
                     child: Text(
                       'Escribe el primer mensaje',
                       style: TextStyle(color: AppColors.muted),
                     ),
-                  )
-                : ListView.builder(
-                    reverse: true,
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                    itemCount: reversed.length,
-                    itemBuilder: (_, i) => MessageBubble(
-                      message: reversed[i],
-                      mine: reversed[i].senderId == me.id,
-                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  reverse: true,
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  itemCount: reversed.length,
+                  itemBuilder: (_, i) => MessageBubble(
+                    message: reversed[i],
+                    mine: reversed[i].senderId == me.id,
                   ),
+                );
+              },
+            ),
           ),
           _InputBar(controller: _input, onSend: _send),
         ],

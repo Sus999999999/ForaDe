@@ -14,6 +14,7 @@ import '../../features/stays/domain/models/stay.dart';
 import '../geo/geo_point.dart';
 import '../geo/location_service.dart';
 import '../security/password_hasher.dart';
+import '../services/notification_service.dart';
 import '../services/supabase_service.dart';
 import '../utils/formatters.dart';
 import '../utils/money.dart';
@@ -49,49 +50,9 @@ class AppState extends ChangeNotifier {
   static const _maxRecoveryAttempts = 5;
 
   // ------------------------------------------------------------------
-  // Datos de ejemplo
+  // Datos de usuario administrador
   // ------------------------------------------------------------------
   final List<UserProfile> _users = [
-    const UserProfile(
-      id: 'u-carlos',
-      role: UserRole.rentero,
-      name: 'Carlos R.',
-      email: 'carlos.r@correo.com',
-      phone: '+52 55 1111 2222',
-      city: 'Ciudad de México',
-    ),
-    const UserProfile(
-      id: 'u-ana',
-      role: UserRole.rentero,
-      name: 'Ana M.',
-      email: 'ana.m@correo.com',
-      phone: '+52 55 3333 4444',
-      city: 'Ciudad de México',
-    ),
-    const UserProfile(
-      id: 'u-luis',
-      role: UserRole.rentero,
-      name: 'Luis G.',
-      email: 'luis.g@correo.com',
-      phone: '+52 55 5555 6666',
-      city: 'Ciudad de México',
-    ),
-    const UserProfile(
-      id: 'u-sofia',
-      role: UserRole.rentero,
-      name: 'Sofía P.',
-      email: 'sofia.p@correo.com',
-      phone: '+52 55 7777 8888',
-      city: 'Ciudad de México',
-    ),
-    const UserProfile(
-      id: 'u-diego',
-      role: UserRole.rentador,
-      name: 'Diego Torres',
-      email: 'diego.t@correo.com',
-      phone: '+52 55 9999 0000',
-      city: 'Guadalajara',
-    ),
     const UserProfile(
       id: 'u-admin',
       role: UserRole.administrador,
@@ -104,14 +65,8 @@ class AppState extends ChangeNotifier {
   /// Credenciales: id de usuario -> hash PBKDF2 (nunca la contraseña).
   final Map<String, String> _credentials = {};
 
-  /// Cuentas de ejemplo cuyo hash se calcula la primera vez que se necesita
-  /// (así el arranque no paga el costo de 6 hashes).
+  /// Cuentas cuyo hash se calcula la primera vez que se necesita
   final Set<String> _seedUserIds = {
-    'u-carlos',
-    'u-ana',
-    'u-luis',
-    'u-sofia',
-    'u-diego',
     'u-admin',
   };
 
@@ -119,104 +74,9 @@ class AppState extends ChangeNotifier {
   final Map<String, DateTime> _lockedUntil = {};
   final Map<String, _RecoveryRequest> _recovery = {};
 
-  final List<Apartment> _apartments = [
-    const Apartment(
-      id: 'seed-1',
-      ownerId: 'u-carlos',
-      title: 'Departamento Reforma 204',
-      location: 'Col. Juárez, CDMX',
-      address: 'Av. Paseo de la Reforma 204, Col. Juárez, CDMX',
-      point: GeoPoint(19.4268, -99.1647),
-      description:
-          'Departamento amueblado ideal para estudiantes, cerca de vías principales, con servicios incluidos y excelente iluminación.',
-      price: Money.pesos(8900),
-      rating: 4.8,
-      hostName: 'Carlos R.',
-    ),
-    const Apartment(
-      id: 'seed-2',
-      ownerId: 'u-ana',
-      title: 'Loft Roma Norte',
-      location: 'Col. Roma Norte, CDMX',
-      address: 'Calle Colima 85, Col. Roma Norte, CDMX',
-      point: GeoPoint(19.4195, -99.1620),
-      description:
-          'Loft de doble altura con cocina integrada, cerca de cafés y transporte público.',
-      price: Money.pesos(12500),
-      rating: 4.6,
-      hostName: 'Ana M.',
-    ),
-    const Apartment(
-      id: 'seed-3',
-      ownerId: 'u-luis',
-      title: 'Estudio Polanco',
-      location: 'Col. Polanco, CDMX',
-      address: 'Calle Horacio 120, Col. Polanco, CDMX',
-      point: GeoPoint(19.4335, -99.1955),
-      description:
-          'Estudio compacto y luminoso, ideal para una persona. Edificio con gimnasio y seguridad 24 h.',
-      price: Money.pesos(15200),
-      rating: 4.9,
-      hostName: 'Luis G.',
-    ),
-    const Apartment(
-      id: 'seed-4',
-      ownerId: 'u-sofia',
-      title: 'Casa Condesa',
-      location: 'Col. Condesa, CDMX',
-      address: 'Calle Amsterdam 58, Col. Condesa, CDMX',
-      point: GeoPoint(19.4120, -99.1730),
-      description:
-          'Casa de dos recámaras con terraza, frente a parque. Actualmente en remodelación.',
-      price: Money.pesos(18000),
-      rating: 4.4,
-      hostName: 'Sofía P.',
-      status: ApartmentStatus.noDisponible,
-    ),
-  ];
+  final List<Apartment> _apartments = [];
 
-  /// Historial de estancias (datos de ejemplo para Diego, el rentador demo).
-  late final List<Stay> _stays = _seedStays();
-
-  static List<Stay> _seedStays() {
-    final now = DateTime.now();
-    DateTime ago(int days) => now.subtract(Duration(days: days));
-    return [
-      Stay(
-        id: 'stay-seed-1',
-        renterId: 'u-diego',
-        apartmentId: 'seed-3',
-        apartmentTitle: 'Estudio Polanco',
-        location: 'Col. Polanco, CDMX',
-        hostName: 'Luis G.',
-        monthlyPrice: const Money.pesos(15200),
-        startDate: ago(760),
-        endDate: ago(490),
-      ),
-      Stay(
-        id: 'stay-seed-2',
-        renterId: 'u-diego',
-        apartmentId: 'seed-2',
-        apartmentTitle: 'Loft Roma Norte',
-        location: 'Col. Roma Norte, CDMX',
-        hostName: 'Ana M.',
-        monthlyPrice: const Money.pesos(12500),
-        startDate: ago(470),
-        endDate: ago(140),
-      ),
-      Stay(
-        id: 'stay-seed-3',
-        renterId: 'u-diego',
-        apartmentId: 'seed-4',
-        apartmentTitle: 'Casa Condesa',
-        location: 'Col. Condesa, CDMX',
-        hostName: 'Sofía P.',
-        monthlyPrice: const Money.pesos(18000),
-        startDate: ago(120),
-        endDate: ago(45),
-      ),
-    ];
-  }
+  final List<Stay> _stays = [];
 
   /// Conversaciones temporales: solo existen mientras no se finalicen.
   final List<ChatConversation> _chats = [];
@@ -239,7 +99,9 @@ class AppState extends ChangeNotifier {
   bool get isAdmin => role == UserRole.administrador;
   bool get canPublish => role == UserRole.rentero;
   bool get canFavorite =>
-      role == UserRole.rentero || role == UserRole.rentador;
+      role == UserRole.rentero ||
+      role == UserRole.rentador ||
+      role == UserRole.administrador;
   bool get canChat => role == UserRole.rentero || role == UserRole.rentador;
 
   UserProfile? _userByEmail(String lowerEmail) {
@@ -277,10 +139,50 @@ class AppState extends ChangeNotifier {
           ..clear()
           ..addAll(remoteApts);
       }
+      await fetchRemoteProfiles();
       if (_currentUser != null) {
         await _loadFavoritesFromSupabase();
+        await _loadChatsFromSupabase();
       }
       await autoRestoreLocation();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Recarga departamentos y usuarios de Supabase para la vista de administración.
+  Future<void> refreshAdminData() async {
+    try {
+      final remoteApts = await SupabaseService.instance.fetchApartments();
+      _apartments
+        ..clear()
+        ..addAll(remoteApts);
+      await fetchRemoteProfiles();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Carga perfiles remotos desde Supabase y los une al perfil de admin simulado.
+  Future<void> fetchRemoteProfiles() async {
+    try {
+      final remote = await SupabaseService.instance.fetchProfiles();
+      final admin = _users.firstWhere(
+        (u) => u.id == 'u-admin',
+        orElse: () => const UserProfile(
+          id: 'u-admin',
+          role: UserRole.administrador,
+          name: 'Administrador General',
+          email: 'admin@forade.com',
+          city: 'Ciudad de México',
+        ),
+      );
+      _users
+        ..clear()
+        ..add(admin);
+      for (final p in remote) {
+        if (p.id != 'u-admin' && !_users.any((u) => u.id == p.id)) {
+          _users.add(p);
+        }
+      }
       notifyListeners();
     } catch (_) {}
   }
@@ -308,7 +210,9 @@ class AppState extends ChangeNotifier {
             ..clear()
             ..addAll(remoteApts);
         }
+        await fetchRemoteProfiles();
         await _loadFavoritesFromSupabase();
+        await _loadChatsFromSupabase();
         await autoRestoreLocation();
         notifyListeners();
         return null;
@@ -345,6 +249,17 @@ class AppState extends ChangeNotifier {
     _failedLogins.remove(key);
     _currentUser = user;
     _resetSession();
+    // Cargar departamentos y usuarios remotos para el admin
+    final remoteApts = await SupabaseService.instance.fetchApartments();
+    if (remoteApts.isNotEmpty) {
+      _apartments
+        ..clear()
+        ..addAll(remoteApts);
+    }
+    await fetchRemoteProfiles();
+    await _loadFavoritesFromSupabase();
+    await _loadChatsFromSupabase();
+    await autoRestoreLocation();
     notifyListeners();
     return null;
   }
@@ -403,6 +318,7 @@ class AppState extends ChangeNotifier {
     await SupabaseService.instance.signOut();
     _currentUser = null;
     _favorites.clear();
+    _chats.clear();
     _userLocation = null;
     _resetSession();
     notifyListeners();
@@ -503,8 +419,31 @@ class AppState extends ChangeNotifier {
   List<Apartment> get apartments => List.unmodifiable(_apartments);
 
   UserProfile? userById(String id) {
+    if (_currentUser?.id == id) return _currentUser;
     for (final u in _users) {
       if (u.id == id) return u;
+    }
+    for (final c in _chats) {
+      if (c.ownerId == id) {
+        return UserProfile(
+          id: id,
+          role: UserRole.rentero,
+          name: c.ownerName,
+          email: '',
+          phone: '',
+          avatarUrl: c.ownerAvatarUrl,
+        );
+      }
+      if (c.renterId == id) {
+        return UserProfile(
+          id: id,
+          role: UserRole.rentador,
+          name: c.renterName,
+          email: '',
+          phone: '',
+          avatarUrl: c.renterAvatarUrl,
+        );
+      }
     }
     return null;
   }
@@ -701,8 +640,9 @@ class AppState extends ChangeNotifier {
   String? _requireOwner(Apartment? apt) {
     final user = _currentUser;
     if (apt == null) return 'Departamento no encontrado.';
+    if (isAdmin) return null; // El administrador puede modificar cualquier departamento
     if (user == null || !canPublish || apt.ownerId != user.id) {
-      return 'Solo quien publicó el departamento puede modificarlo.';
+      return 'Solo quien publicó el departamento o un administrador puede modificarlo.';
     }
     return null;
   }
@@ -819,6 +759,22 @@ class AppState extends ChangeNotifier {
   String? reactivateApartment(String id) =>
       setApartmentStatus(id, ApartmentStatus.disponible);
 
+  /// Elimina definitivamente un departamento de Supabase y localmente.
+  /// El administrador puede eliminar cualquiera; el rentero solo los suyos.
+  Future<String?> deleteApartment(String id) async {
+    final a = apartmentById(id);
+    if (a == null) return 'Departamento no encontrado.';
+    if (!isAdmin && a.ownerId != _currentUser?.id) {
+      return 'Solo quien publicó el departamento o un administrador puede eliminarlo.';
+    }
+    _apartments.removeWhere((item) => item.id == id);
+    _favorites.removeWhere((f) => f.apartmentId == id);
+    _chats.removeWhere((c) => c.apartmentId == id);
+    notifyListeners();
+    final err = await SupabaseService.instance.deleteApartment(id);
+    return err;
+  }
+
   // ------------------------------------------------------------------
   // Historial de estancias
   // ------------------------------------------------------------------
@@ -863,6 +819,10 @@ class AppState extends ChangeNotifier {
     final i = _apartments.indexWhere((a) => a.id == fresh.id);
     _apartments[i] = fresh.copyWith(status: ApartmentStatus.ocupado);
     notifyListeners();
+    NotificationService.instance.notifyStayConfirmed(
+      apartmentTitle: fresh.title,
+      tenantName: renter.name,
+    );
     return true;
   }
 
@@ -879,12 +839,35 @@ class AppState extends ChangeNotifier {
     final j = _apartments.indexWhere((a) => a.id == apartmentId);
     _apartments[j] = apt.copyWith(status: ApartmentStatus.disponible);
     notifyListeners();
+    NotificationService.instance.notifyStayEnded(
+      apartmentTitle: apt.title,
+    );
     return true;
   }
 
   // ------------------------------------------------------------------
   // Contactos / chat
   // ------------------------------------------------------------------
+
+  Future<void> _loadChatsFromSupabase() async {
+    final user = _currentUser;
+    if (user == null) return;
+    try {
+      final remoteChats = await SupabaseService.instance.fetchConversations();
+      if (remoteChats.isNotEmpty) {
+        _chats
+          ..clear()
+          ..addAll(remoteChats);
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> refreshChats() async {
+    await _loadChatsFromSupabase();
+    notifyListeners();
+  }
+
   /// Conversaciones del usuario actual (la más reciente primero).
   List<ChatConversation> get myChats {
     final id = _currentUser?.id;
@@ -924,7 +907,7 @@ class AppState extends ChangeNotifier {
 
   /// Devuelve la conversación existente o crea una nueva con el rentero.
   /// Solo se puede iniciar un contacto nuevo sobre un departamento Disponible.
-  ChatConversation? openChat(Apartment a) {
+  Future<ChatConversation?> openChat(Apartment a) async {
     final user = _currentUser;
     if (user == null || !canChat || a.ownerId == user.id) return null;
     final existing = chatFor(a);
@@ -932,41 +915,73 @@ class AppState extends ChangeNotifier {
     final fresh = apartmentById(a.id);
     if (fresh == null || !fresh.isAvailable) return null;
 
+    final remote = await SupabaseService.instance.openOrCreateConversation(apartment: fresh);
+    if (remote != null) {
+      final idx = _chats.indexWhere((c) => c.id == remote.id);
+      if (idx >= 0) {
+        _chats[idx] = remote;
+      } else {
+        _chats.add(remote);
+      }
+      notifyListeners();
+      return remote;
+    }
+
     final chat = ChatConversation(
       id: 'chat-${DateTime.now().microsecondsSinceEpoch}',
       apartmentId: fresh.id,
       apartmentTitle: fresh.title,
       ownerId: fresh.ownerId,
       renterId: user.id,
+      ownerName: fresh.hostName,
+      renterName: user.name,
+      ownerAvatarUrl: fresh.hostAvatarUrl,
     );
     _chats.add(chat);
     notifyListeners();
     return chat;
   }
 
-  void sendMessage(String chatId, String text) {
+  Future<void> sendMessage(String chatId, String text) async {
     final user = _currentUser;
     final chat = chatById(chatId);
     final body = text.trim();
     if (user == null || chat == null || body.isEmpty) return;
     if (!chat.hasParticipant(user.id)) return;
 
-    chat.messages.add(ChatMessage(
+    final localMsg = ChatMessage(
       id: 'm-${DateTime.now().microsecondsSinceEpoch}',
+      conversationId: chatId,
       senderId: user.id,
       text: body,
       sentAt: DateTime.now(),
-    ));
+    );
+
+    chat.messages.add(localMsg);
     notifyListeners();
+
+    final remoteMsg = await SupabaseService.instance.sendMessage(
+      conversationId: chatId,
+      text: body,
+    );
+
+    if (remoteMsg != null) {
+      final idx = chat.messages.indexWhere((m) => m.id == localMsg.id);
+      if (idx >= 0) {
+        chat.messages[idx] = remoteMsg;
+        notifyListeners();
+      }
+    }
   }
 
   /// Finaliza la conversación: se elimina para ambas personas.
-  void endChat(String chatId) {
+  Future<void> endChat(String chatId) async {
     final user = _currentUser;
     final chat = chatById(chatId);
     if (user == null || chat == null || !chat.hasParticipant(user.id)) return;
     _chats.remove(chat);
     notifyListeners();
+    await SupabaseService.instance.deleteConversation(chatId);
   }
 
   // ------------------------------------------------------------------
@@ -1019,11 +1034,12 @@ class AppState extends ChangeNotifier {
 
   /// Elimina un usuario (solo administrador). Sus departamentos pasan a
   /// Inactivo (baja lógica) y se conservan los favoritos de otras personas.
-  /// Devuelve false si se intenta borrar la cuenta con la sesión activa.
-  bool deleteUser(String id) {
-    if (!isAdmin || id == _currentUser?.id) return false;
+  /// Devuelve false si se intenta borrar la cuenta con la sesión activa o el perfil simulado de administrador.
+  Future<bool> deleteUser(String id) async {
+    if (!isAdmin || id == _currentUser?.id || id == 'u-admin') return false;
     _retireUser(id);
     notifyListeners();
+    await SupabaseService.instance.deleteProfile(id);
     return true;
   }
 

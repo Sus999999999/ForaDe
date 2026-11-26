@@ -18,12 +18,12 @@ import '../widgets/apartment_list_tile.dart';
 import '../widgets/search_filter_bar.dart';
 import '../widgets/status_chip.dart';
 
-enum _Action { edit, available, occupied, unavailable, deactivate, reactivate }
+enum _Action { edit, available, occupied, unavailable, deactivate, reactivate, delete }
 
 /// Lista de departamentos con búsqueda y filtros por precio, estado y zona.
 /// - Quien busca: solo departamentos disponibles.
 /// - Quien publica: los suyos, en cualquier estado, con acciones de gestión.
-/// - Administrador: todos, solo de consulta.
+/// - Administrador: todos, con capacidad de editar y eliminar.
 class ApartmentsListScreen extends StatefulWidget {
   const ApartmentsListScreen({super.key});
 
@@ -94,11 +94,25 @@ class _ApartmentsListScreenState extends State<ApartmentsListScreen> {
         );
         if (!ok || !mounted) return;
         _report(state.deactivateApartment(a.id), 'Departamento desactivado');
+      case _Action.delete:
+        final ok = await confirmDialog(
+          context,
+          title: 'Eliminar departamento',
+          message:
+              '¿Seguro que deseas eliminar "${a.title}"? Esta acción no se puede deshacer.',
+          confirmLabel: 'Eliminar',
+        );
+        if (!ok || !mounted) return;
+        final error = await state.deleteApartment(a.id);
+        if (!mounted) return;
+        _report(error, 'Departamento eliminado');
     }
   }
 
   Widget _trailing(AppState state, Apartment a) {
-    if (state.canPublish) {
+    final canManage =
+        state.isAdmin || (state.canPublish && a.ownerId == state.profile.id);
+    if (canManage) {
       return PopupMenuButton<_Action>(
         tooltip: 'Opciones',
         icon: const Icon(Icons.more_vert, color: AppColors.navy),
@@ -127,6 +141,11 @@ class _ApartmentsListScreenState extends State<ApartmentsListScreen> {
           ] else
             const PopupMenuItem(
                 value: _Action.reactivate, child: Text('Reactivar')),
+          const PopupMenuItem(
+            value: _Action.delete,
+            child: Text('Eliminar',
+                style: TextStyle(color: Color(0xFFD32F2F))),
+          ),
         ],
       );
     }

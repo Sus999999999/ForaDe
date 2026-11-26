@@ -6,8 +6,21 @@ import '../../../../shared/widgets/title_app_bar.dart';
 import '../widgets/admin_apartments_tab.dart';
 import '../widgets/admin_users_tab.dart';
 
-class AdminScreen extends StatelessWidget {
+class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
+
+  @override
+  State<AdminScreen> createState() => _AdminScreenState();
+}
+
+class _AdminScreenState extends State<AdminScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AppScope.read(context).refreshAdminData();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,6 +31,13 @@ class AdminScreen extends StatelessWidget {
       child: Scaffold(
         appBar: TitleAppBar(
           title: 'Administración',
+          actions: [
+            IconButton(
+              tooltip: 'Actualizar datos',
+              icon: const Icon(Icons.refresh, color: AppColors.navy),
+              onPressed: () => AppScope.read(context).refreshAdminData(),
+            ),
+          ],
           bottom: TabBar(
             labelColor: AppColors.text,
             unselectedLabelColor: AppColors.muted,
