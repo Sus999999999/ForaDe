@@ -58,8 +58,9 @@ class _ContactScreenState extends State<ContactScreen> {
     await state.sendMessage(chat.id, text);
 
     if (!mounted) return;
+    final finalChat = state.chatFor(widget.apartment) ?? chat;
     Navigator.of(context)
-        .pushReplacementNamed(AppRoutes.chat, arguments: chat.id);
+        .pushReplacementNamed(AppRoutes.chat, arguments: finalChat.id);
   }
 
   @override

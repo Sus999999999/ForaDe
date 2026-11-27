@@ -12,7 +12,7 @@ import '../../../auth/domain/models/user_role.dart';
 import '../../domain/models/chat_models.dart';
 import '../widgets/message_bubble.dart';
 
-enum _ChatAction { registerStay, endStay, endChat }
+enum _ChatAction { acceptRent, cancelRent, endChat }
 
 /// Conversación temporal entre rentero y rentador.
 /// Al finalizarla se elimina para ambos.
@@ -26,6 +26,29 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _input = TextEditingController();
+  Stream<List<ChatMessage>>? _messageStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initStream(widget.chatId);
+  }
+
+  void _initStream(String chatId) {
+    if (SupabaseService.instance.isUuid(chatId)) {
+      _messageStream = SupabaseService.instance.streamMessages(chatId);
+    } else {
+      _messageStream = null;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.chatId != widget.chatId) {
+      _initStream(widget.chatId);
+    }
+  }
 
   @override
   void dispose() {
@@ -56,7 +79,7 @@ class _ChatScreenState extends State<ChatScreen> {
     state.endChat(widget.chatId);
   }
 
-  Future<void> _registerStay(String renterName) async {
+  Future<void> _acceptRent(String targetName) async {
     final state = AppScope.read(context);
     final chat = state.chatById(widget.chatId);
     final apt = chat == null ? null : state.apartmentById(chat.apartmentId);
@@ -64,37 +87,45 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final ok = await confirmDialog(
       context,
-      title: 'Registrar renta',
+      title: 'Aceptar renta',
       message:
-          '¿Registrar que $renterName rentó "${apt.title}" a partir de hoy? El departamento pasará a "Ocupado" y la renta aparecerá en su historial.',
-      confirmLabel: 'Registrar',
+          '¿Deseas aceptar la renta de "${apt.title}" a $targetName?\n\nRecuerda cambiar el estado del departamento a "Ocupado" si este ya se llenó.',
+      confirmLabel: 'Aceptar renta',
     );
     if (!ok || !mounted) return;
-    final done = state.registerStay(apartment: apt, renterId: chat.renterId);
+    final done = state.registerStay(
+      apartment: apt,
+      renterId: chat.renterId,
+      renterName: chat.renterName,
+    );
     showAppSnackBar(
       context,
-      done ? 'Renta registrada' : 'No se pudo registrar la renta',
+      done
+          ? 'Renta aceptada. Recuerda cambiar el estado del departamento si ya se llenó.'
+          : 'No se pudo aceptar la renta',
       icon: done ? Icons.check_circle : Icons.error_outline,
+      duration: const Duration(seconds: 4),
     );
   }
 
-  Future<void> _endStay(String renterName) async {
+  Future<void> _cancelRent(String targetName) async {
     final state = AppScope.read(context);
     final chat = state.chatById(widget.chatId);
+    final apt = chat == null ? null : state.apartmentById(chat.apartmentId);
     if (chat == null) return;
 
     final ok = await confirmDialog(
       context,
-      title: 'Finalizar renta',
+      title: 'Cancelar renta',
       message:
-          '¿Dar por terminada la estancia de $renterName? Se guardará en su historial con el tiempo hospedado y el departamento volverá a estar disponible.',
-      confirmLabel: 'Finalizar',
+          '¿Estás seguro de que deseas cancelar la renta de "${apt?.title ?? 'este departamento'}"? Se finalizará la estancia.',
+      confirmLabel: 'Cancelar renta',
     );
     if (!ok || !mounted) return;
-    final done = state.endStay(chat.apartmentId);
+    final done = state.endStay(chat.apartmentId, renterId: chat.renterId);
     showAppSnackBar(
       context,
-      done ? 'Renta finalizada' : 'No se pudo finalizar la renta',
+      done ? 'Renta cancelada' : 'No se pudo cancelar la renta',
       icon: done ? Icons.check_circle : Icons.error_outline,
     );
   }
@@ -121,20 +152,94 @@ class _ChatScreenState extends State<ChatScreen> {
         ? chat.otherParticipantName(me.id)
         : (other?.name ?? 'Usuario');
 
-    // Acciones de renta: solo para el rentero dueño del departamento.
     final apt = state.apartmentById(chat.apartmentId);
-    final isOwner = me.id == chat.ownerId && apt != null;
-    final activeStay = apt == null ? null : state.activeStayOf(apt.id);
-    final canRegister = isOwner &&
-        (other?.role == UserRole.rentador || other == null) &&
-        activeStay == null &&
-        !apt.isInactive;
-    final canEndStay =
-        isOwner && activeStay != null && activeStay.renterId == chat.renterId;
+    final isOwner = me.id == chat.ownerId;
+    final isRentActive =
+        state.hasActiveStay(apartmentId: chat.apartmentId, renterId: chat.renterId);
+    final canAccept =
+        isOwner && !isRentActive && (apt == null || !apt.isInactive);
 
     return Scaffold(
       appBar: TitleAppBar(
         title: otherName,
+        titleWidget: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                otherName,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontFamily: AppColors.serif,
+                  color: AppColors.text,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 20,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (isRentActive)
+              InkWell(
+                onTap: () => _cancelRent(otherName),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEE2E2),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFFCA5A5)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.cancel_outlined,
+                          size: 13, color: Color(0xFFDC2626)),
+                      SizedBox(width: 4),
+                      Text(
+                        'Cancelar renta',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (canAccept)
+              InkWell(
+                onTap: () => _acceptRent(otherName),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.navy,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check_circle_outline,
+                          size: 13, color: Colors.white),
+                      SizedBox(width: 4),
+                      Text(
+                        'Aceptar renta',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
         actions: [
           PopupMenuButton<_ChatAction>(
             tooltip: 'Opciones',
@@ -143,24 +248,27 @@ class _ChatScreenState extends State<ChatScreen> {
             surfaceTintColor: Colors.transparent,
             onSelected: (a) {
               switch (a) {
-                case _ChatAction.registerStay:
-                  _registerStay(otherName);
-                case _ChatAction.endStay:
-                  _endStay(otherName);
+                case _ChatAction.acceptRent:
+                  _acceptRent(otherName);
+                case _ChatAction.cancelRent:
+                  _cancelRent(otherName);
                 case _ChatAction.endChat:
                   _endChat();
               }
             },
             itemBuilder: (_) => [
-              if (canRegister)
+              if (isRentActive)
                 const PopupMenuItem(
-                  value: _ChatAction.registerStay,
-                  child: Text('Registrar renta'),
-                ),
-              if (canEndStay)
+                  value: _ChatAction.cancelRent,
+                  child: Text(
+                    'Cancelar renta',
+                    style: TextStyle(color: Color(0xFFDC2626)),
+                  ),
+                )
+              else if (canAccept)
                 const PopupMenuItem(
-                  value: _ChatAction.endStay,
-                  child: Text('Finalizar renta'),
+                  value: _ChatAction.acceptRent,
+                  child: Text('Aceptar renta'),
                 ),
               const PopupMenuItem(
                 value: _ChatAction.endChat,
@@ -215,39 +323,57 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           Expanded(
-            child: StreamBuilder<List<ChatMessage>>(
-              stream: SupabaseService.instance.streamMessages(widget.chatId),
-              builder: (context, snapshot) {
-                final List<ChatMessage> displayMessages;
-                if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
-                  displayMessages = snapshot.data!;
-                  // Sincronizar copia en memoria
-                  chat.messages
-                    ..clear()
-                    ..addAll(displayMessages);
-                } else {
-                  displayMessages = chat.messages;
+            child: Builder(
+              builder: (context) {
+                if (_messageStream == null && SupabaseService.instance.isUuid(chat.id)) {
+                  _initStream(chat.id);
                 }
 
-                final reversed = displayMessages.reversed.toList();
+                return StreamBuilder<List<ChatMessage>>(
+                  stream: _messageStream,
+                  builder: (context, snapshot) {
+                    final List<ChatMessage> displayMessages;
+                    if (snapshot.hasData && snapshot.data != null) {
+                      final remoteMessages = snapshot.data!;
+                      // Combinar mensajes remotos con mensajes locales optimistas
+                      final combined = <ChatMessage>[...remoteMessages];
+                      for (final local in chat.messages) {
+                        final exists = combined.any((m) =>
+                            m.id == local.id ||
+                            (m.text == local.text &&
+                                m.senderId == local.senderId &&
+                                m.sentAt.difference(local.sentAt).abs().inSeconds < 5));
+                        if (!exists) {
+                          combined.add(local);
+                        }
+                      }
+                      combined.sort((a, b) => a.sentAt.compareTo(b.sentAt));
+                      displayMessages = combined;
+                    } else {
+                      displayMessages = chat.messages;
+                    }
 
-                if (reversed.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'Escribe el primer mensaje',
-                      style: TextStyle(color: AppColors.muted),
-                    ),
-                  );
-                }
+                    final reversed = displayMessages.reversed.toList();
 
-                return ListView.builder(
-                  reverse: true,
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  itemCount: reversed.length,
-                  itemBuilder: (_, i) => MessageBubble(
-                    message: reversed[i],
-                    mine: reversed[i].senderId == me.id,
-                  ),
+                    if (reversed.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          'Escribe el primer mensaje',
+                          style: TextStyle(color: AppColors.muted),
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      reverse: true,
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      itemCount: reversed.length,
+                      itemBuilder: (_, i) => MessageBubble(
+                        message: reversed[i],
+                        mine: reversed[i].senderId == me.id,
+                      ),
+                    );
+                  },
                 );
               },
             ),

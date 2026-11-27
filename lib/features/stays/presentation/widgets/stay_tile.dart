@@ -8,8 +8,14 @@ import '../../domain/models/stay.dart';
 /// Tarjeta de una estancia: departamento, fechas y tiempo hospedado.
 class StayTile extends StatelessWidget {
   final Stay stay;
+  final bool isOwnerView;
   final VoidCallback? onTap;
-  const StayTile({super.key, required this.stay, this.onTap});
+  const StayTile({
+    super.key,
+    required this.stay,
+    this.isOwnerView = false,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -17,6 +23,9 @@ class StayTile extends StatelessWidget {
     final range = stay.isActive
         ? 'Desde el ${formatDate(stay.startDate)}'
         : '${formatDate(stay.startDate)} – ${formatDate(stay.endDate!)}';
+
+    final displayName =
+        stay.renterName.isNotEmpty ? stay.renterName : 'Usuario';
 
     return InkWell(
       onTap: onTap,
@@ -40,11 +49,11 @@ class StayTile extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          stay.apartmentTitle,
+                          isOwnerView ? displayName : stay.apartmentTitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 15,
+                            fontSize: 16,
                             fontWeight: FontWeight.w700,
                             color: AppColors.text,
                           ),
@@ -71,13 +80,35 @@ class StayTile extends StatelessWidget {
                       ],
                     ],
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
+                  if (isOwnerView) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.home_work_outlined,
+                            size: 14, color: AppColors.navy),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Rentó: ${stay.apartmentTitle}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.navy,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                  ],
                   Text(
                     stay.location,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style:
-                        const TextStyle(fontSize: 13, color: AppColors.muted),
+                        const TextStyle(fontSize: 12.5, color: AppColors.muted),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -93,11 +124,15 @@ class StayTile extends StatelessWidget {
                       const SizedBox(width: 5),
                       Expanded(
                         child: Text(
-                          stay.isActive
-                              ? 'Hospedado: ${length.label}'
-                              : 'Se hospedó: ${length.label}',
+                          isOwnerView
+                              ? (stay.isActive
+                                  ? 'Tiempo rentado: ${length.label}'
+                                  : 'Rentado durante: ${length.label}')
+                              : (stay.isActive
+                                  ? 'Hospedado: ${length.label}'
+                                  : 'Se hospedó: ${length.label}'),
                           style: const TextStyle(
-                            fontSize: 13.5,
+                            fontSize: 13,
                             fontWeight: FontWeight.w700,
                             color: AppColors.blue,
                           ),
@@ -105,9 +140,11 @@ class StayTile extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Text(
-                    '${formatPrice(stay.monthlyPrice)} / mes · ${stay.hostName}',
+                    isOwnerView
+                        ? '${formatPrice(stay.monthlyPrice)} / mes'
+                        : '${formatPrice(stay.monthlyPrice)} / mes · ${stay.hostName}',
                     style:
                         const TextStyle(fontSize: 12, color: AppColors.muted),
                   ),

@@ -205,7 +205,7 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
     if (error == null) setState(() => _status = ApartmentStatus.disponible);
   }
 
-  Widget _statusSection(Apartment? current, bool hasActiveStay) {
+  Widget _statusSection(Apartment? current) {
     if (current != null && current.isInactive) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,7 +226,6 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
       );
     }
 
-    final locked = hasActiveStay;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -237,22 +236,21 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
             for (final s in _editableStatuses)
               ChoiceChip(
                 label: Text(s.label),
-                selected: (locked ? ApartmentStatus.ocupado : _status) == s,
-                onSelected:
-                    locked ? null : (_) => setState(() => _status = s),
+                selected: _status == s,
+                onSelected: (_) => setState(() => _status = s),
                 showCheckmark: false,
                 backgroundColor: Colors.white,
                 selectedColor:
                     StatusChip.colorOf(s).withValues(alpha: 0.14),
                 side: BorderSide(
-                  color: (locked ? ApartmentStatus.ocupado : _status) == s
+                  color: _status == s
                       ? StatusChip.colorOf(s)
                       : AppColors.border,
                 ),
                 labelStyle: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: (locked ? ApartmentStatus.ocupado : _status) == s
+                  color: _status == s
                       ? StatusChip.colorOf(s)
                       : AppColors.text,
                 ),
@@ -260,11 +258,9 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        Text(
-          locked
-              ? 'Tiene una renta en curso. Finalízala desde el chat para cambiar el estado.'
-              : 'Solo los departamentos Disponibles aparecen en las búsquedas.',
-          style: const TextStyle(
+        const Text(
+          'Solo los departamentos Disponibles aparecen en las búsquedas. Recuerda cambiar el estado a "Ocupado" si ya no tienes cupo.',
+          style: TextStyle(
               fontSize: 12.5, height: 1.4, color: AppColors.muted),
         ),
       ],
@@ -289,9 +285,6 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
         ),
       );
     }
-
-    final hasActiveStay =
-        current != null && state.activeStayOf(current.id) != null;
 
     return Scaffold(
       appBar: TitleAppBar(
@@ -441,7 +434,7 @@ class _ApartmentFormScreenState extends State<ApartmentFormScreen> {
                   const SizedBox(height: 22),
                   const SectionLabel('ESTADO'),
                   const SizedBox(height: 8),
-                  _statusSection(current, hasActiveStay),
+                  _statusSection(current),
                   if (current != null && !current.isInactive) ...[
                     const SizedBox(height: 28),
                     OutlinedActionButton(

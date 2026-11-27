@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/apartments/domain/models/apartment.dart';
@@ -7,6 +8,7 @@ import '../../features/apartments/domain/models/apartment_status.dart';
 import '../../features/auth/domain/models/user_role.dart';
 import '../../features/chat/domain/models/chat_models.dart';
 import '../../features/profile/domain/models/user_profile.dart';
+import '../../features/stays/domain/models/stay.dart';
 import '../geo/geo_point.dart';
 import '../utils/money.dart';
 
@@ -323,6 +325,23 @@ class SupabaseService {
     }
   }
 
+  /// Descarga los departamentos desde Supabase. Si la lista devuelta está vacía,
+  /// reintenta hasta [maxRetries] veces (por defecto 5).
+  Future<List<Apartment>> fetchApartmentsWithRetry({
+    int maxRetries = 5,
+    Duration delay = const Duration(milliseconds: 600),
+  }) async {
+    var list = await fetchApartments();
+    if (list.isNotEmpty) return list;
+
+    for (var retry = 1; retry <= maxRetries; retry++) {
+      await Future<void>.delayed(delay);
+      list = await fetchApartments();
+      if (list.isNotEmpty) return list;
+    }
+    return [];
+  }
+
   /// Inserta un departamento en Supabase y sube sus fotos si las hay.
   Future<String?> insertApartment(Apartment a, {List<Uint8List>? newImageBytes}) async {
     final user = currentUser;
@@ -424,7 +443,8 @@ class SupabaseService {
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
   );
 
-  bool _isUuid(String value) => _uuidPattern.hasMatch(value);
+  bool isUuid(String value) => _uuidPattern.hasMatch(value);
+  bool _isUuid(String value) => isUuid(value);
 
   /// Alterna un favorito en Supabase.
   Future<bool> toggleFavorite(String apartmentId) async {
@@ -474,38 +494,69 @@ class SupabaseService {
     if (user == null) return [];
 
     try {
-      final data = await _client
-          .from('chat_conversations')
-          .select('*, owner:profiles!owner_id(name, avatar_url), renter:profiles!renter_id(name, avatar_url)')
-          .or('owner_id.eq.${user.id},renter_id.eq.${user.id}')
-          .order('updated_at', ascending: false);
+      dynamic data;
+      try {
+        data = await _client
+            .from('chat_conversations')
+            .select('*, owner:profiles!owner_id(name, avatar_url), renter:profiles!renter_id(name, avatar_url)')
+            .or('owner_id.eq.${user.id},renter_id.eq.${user.id}')
+            .order('updated_at', ascending: false);
+      } catch (e) {
+        debugPrint('⚠️ Error select embed en fetchConversations, intentando plano: $e');
+        data = await _client
+            .from('chat_conversations')
+            .select()
+            .or('owner_id.eq.${user.id},renter_id.eq.${user.id}')
+            .order('updated_at', ascending: false);
+      }
+
+      if (data == null || data is! List) return [];
 
       final conversations = <ChatConversation>[];
-      for (final row in (data as List)) {
-        final convId = row['id'] as String;
-        final msgsData = await _client
-            .from('chat_messages')
-            .select()
-            .eq('conversation_id', convId)
-            .order('created_at', ascending: true);
+      for (final row in data) {
+        try {
+          final rowMap = row is Map<String, dynamic>
+              ? row
+              : Map<String, dynamic>.from(row as Map);
+          final convId = rowMap['id']?.toString() ?? '';
 
-        final messages = (msgsData as List)
-            .map((m) => ChatMessage.fromMap(m as Map<String, dynamic>))
-            .toList();
+          List<ChatMessage> messages = [];
+          if (convId.isNotEmpty && isUuid(convId)) {
+            try {
+              final msgsData = await _client
+                  .from('chat_messages')
+                  .select()
+                  .eq('conversation_id', convId)
+                  .order('created_at', ascending: true);
 
-        conversations.add(ChatConversation.fromMap(
-          row as Map<String, dynamic>,
-          messages: messages,
-        ));
+              if (msgsData is List) {
+                messages = msgsData.map((m) => ChatMessage.fromMap(m)).toList();
+              }
+            } catch (e) {
+              debugPrint('⚠️ Error cargando mensajes para conv $convId: $e');
+            }
+          }
+
+          conversations.add(ChatConversation.fromMap(
+            rowMap,
+            messages: messages,
+          ));
+        } catch (e) {
+          debugPrint('⚠️ Error al parsear conversación: $e');
+        }
       }
       return conversations;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('❌ Error general en fetchConversations: $e');
       return [];
     }
   }
 
   /// Suscripción en tiempo real vía WebSockets a los mensajes de una conversación.
   Stream<List<ChatMessage>> streamMessages(String conversationId) {
+    if (!isUuid(conversationId)) {
+      return const Stream.empty();
+    }
     return _client
         .from('chat_messages')
         .stream(primaryKey: ['id'])
@@ -521,7 +572,7 @@ class SupabaseService {
   }) async {
     final user = currentUser;
     final body = text.trim();
-    if (user == null || body.isEmpty) return null;
+    if (user == null || body.isEmpty || !isUuid(conversationId)) return null;
 
     try {
       final res = await _client.from('chat_messages').insert({
@@ -530,12 +581,18 @@ class SupabaseService {
         'text': body,
       }).select().single();
 
-      await _client.from('chat_conversations').update({
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', conversationId);
+      // Actualizar updated_at en la conversación de forma segura
+      try {
+        await _client.from('chat_conversations').update({
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        }).eq('id', conversationId);
+      } catch (e) {
+        debugPrint('⚠️ No se pudo actualizar updated_at de la conversación: $e');
+      }
 
       return ChatMessage.fromMap(res);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('❌ Error al enviar mensaje en Supabase: $e');
       return null;
     }
   }
@@ -546,39 +603,78 @@ class SupabaseService {
   }) async {
     final user = currentUser;
     if (user == null || user.id == apartment.ownerId) return null;
+    if (!isUuid(apartment.id) || !isUuid(apartment.ownerId)) return null;
 
     try {
-      final existing = await _client
-          .from('chat_conversations')
-          .select('*, owner:profiles!owner_id(name, avatar_url), renter:profiles!renter_id(name, avatar_url)')
-          .eq('apartment_id', apartment.id)
-          .eq('renter_id', user.id)
-          .maybeSingle();
-
-      if (existing != null) {
-        final convId = existing['id'] as String;
-        final msgsData = await _client
-            .from('chat_messages')
+      dynamic existing;
+      try {
+        existing = await _client
+            .from('chat_conversations')
+            .select('*, owner:profiles!owner_id(name, avatar_url), renter:profiles!renter_id(name, avatar_url)')
+            .eq('apartment_id', apartment.id)
+            .eq('renter_id', user.id)
+            .maybeSingle();
+      } catch (e) {
+        debugPrint('⚠️ Fallo select embed en openOrCreateConversation, reintentando plano: $e');
+        existing = await _client
+            .from('chat_conversations')
             .select()
-            .eq('conversation_id', convId)
-            .order('created_at', ascending: true);
-
-        final messages = (msgsData as List)
-            .map((m) => ChatMessage.fromMap(m as Map<String, dynamic>))
-            .toList();
-
-        return ChatConversation.fromMap(existing, messages: messages);
+            .eq('apartment_id', apartment.id)
+            .eq('renter_id', user.id)
+            .maybeSingle();
       }
 
-      final inserted = await _client.from('chat_conversations').insert({
-        'apartment_id': apartment.id,
-        'apartment_title': apartment.title,
-        'owner_id': apartment.ownerId,
-        'renter_id': user.id,
-      }).select('*, owner:profiles!owner_id(name, avatar_url), renter:profiles!renter_id(name, avatar_url)').single();
+      if (existing != null) {
+        final convId = existing['id']?.toString() ?? '';
+        List<ChatMessage> messages = [];
+        if (convId.isNotEmpty && isUuid(convId)) {
+          try {
+            final msgsData = await _client
+                .from('chat_messages')
+                .select()
+                .eq('conversation_id', convId)
+                .order('created_at', ascending: true);
 
-      return ChatConversation.fromMap(inserted, messages: []);
-    } catch (_) {
+            if (msgsData is List) {
+              messages = msgsData.map((m) => ChatMessage.fromMap(m)).toList();
+            }
+          } catch (e) {
+            debugPrint('⚠️ Error cargando mensajes existentes: $e');
+          }
+        }
+
+        final existingMap = existing is Map<String, dynamic>
+            ? existing
+            : Map<String, dynamic>.from(existing as Map);
+
+        return ChatConversation.fromMap(existingMap, messages: messages);
+      }
+
+      dynamic inserted;
+      try {
+        inserted = await _client.from('chat_conversations').insert({
+          'apartment_id': apartment.id,
+          'apartment_title': apartment.title,
+          'owner_id': apartment.ownerId,
+          'renter_id': user.id,
+        }).select('*, owner:profiles!owner_id(name, avatar_url), renter:profiles!renter_id(name, avatar_url)').single();
+      } catch (e) {
+        debugPrint('⚠️ Fallo insert con select embed, reintentando plano: $e');
+        inserted = await _client.from('chat_conversations').insert({
+          'apartment_id': apartment.id,
+          'apartment_title': apartment.title,
+          'owner_id': apartment.ownerId,
+          'renter_id': user.id,
+        }).select().single();
+      }
+
+      final insertedMap = inserted is Map<String, dynamic>
+          ? inserted
+          : Map<String, dynamic>.from(inserted as Map);
+
+      return ChatConversation.fromMap(insertedMap, messages: []);
+    } catch (e) {
+      debugPrint('❌ Error en openOrCreateConversation: $e');
       return null;
     }
   }
@@ -586,13 +682,88 @@ class SupabaseService {
   /// Finaliza y elimina la conversación en Supabase (en cascada elimina los mensajes).
   Future<bool> deleteConversation(String conversationId) async {
     try {
-      await _client
-          .from('chat_conversations')
-          .delete()
-          .eq('id', conversationId);
+      if (isUuid(conversationId)) {
+        await _client
+            .from('chat_conversations')
+            .delete()
+            .eq('id', conversationId);
+      }
       return true;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('❌ Error al eliminar conversación: $e');
       return false;
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Rentas (stays)
+  // ------------------------------------------------------------------
+
+  /// Descarga las rentas del usuario actual (como dueño o como rentador).
+  Future<List<Stay>> fetchStays() async {
+    final user = currentUser;
+    if (user == null) return [];
+    try {
+      final data = await _client
+          .from('stays')
+          .select()
+          .or('renter_id.eq.${user.id},owner_id.eq.${user.id}')
+          .order('start_date', ascending: false);
+
+      return (data as List).map((row) {
+        return Stay(
+          id: row['id'] as String,
+          renterId: row['renter_id'] as String,
+          renterName: (row['renter_name'] as String?) ?? '',
+          ownerId: row['owner_id'] as String,
+          apartmentId: row['apartment_id'] as String,
+          apartmentTitle: row['apartment_title'] as String,
+          location: (row['location'] as String?) ?? '',
+          hostName: (row['host_name'] as String?) ?? '',
+          monthlyPrice: Money.fromCents(row['monthly_price_cents'] as int),
+          startDate: DateTime.parse(row['start_date'] as String),
+          endDate: row['end_date'] != null
+              ? DateTime.parse(row['end_date'] as String)
+              : null,
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('❌ Error al cargar rentas: $e');
+      return [];
+    }
+  }
+
+  /// Inserta una nueva renta en Supabase y devuelve el UUID generado (o null si falla).
+  Future<String?> insertStay(Stay stay) async {
+    try {
+      final res = await _client.from('stays').insert({
+        'renter_id': stay.renterId,
+        'owner_id': stay.ownerId,
+        'apartment_id': stay.apartmentId,
+        'apartment_title': stay.apartmentTitle,
+        'location': stay.location,
+        'host_name': stay.hostName,
+        'monthly_price_cents': stay.monthlyPrice.cents,
+        'renter_name': stay.renterName,
+        'start_date': stay.startDate.toUtc().toIso8601String(),
+      }).select('id').single();
+      return res['id'] as String?;
+    } catch (e) {
+      debugPrint('❌ Error al insertar renta: $e');
+      return null;
+    }
+  }
+
+  /// Actualiza el campo end_date de la renta con [stayId] en Supabase.
+  Future<void> endStayInSupabase(String stayId, DateTime endDate) async {
+    if (!isUuid(stayId)) return;
+    try {
+      await _client
+          .from('stays')
+          .update({'end_date': endDate.toUtc().toIso8601String()})
+          .eq('id', stayId);
+    } catch (e) {
+      debugPrint('❌ Error al finalizar renta en Supabase: $e');
     }
   }
 

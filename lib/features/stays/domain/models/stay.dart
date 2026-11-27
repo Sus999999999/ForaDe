@@ -58,6 +58,8 @@ class StayLength {
 class Stay {
   final String id;
   final String renterId;
+  final String renterName;
+  final String ownerId;
   final String apartmentId;
   final String apartmentTitle;
   final String location;
@@ -69,6 +71,8 @@ class Stay {
   const Stay({
     required this.id,
     required this.renterId,
+    this.renterName = '',
+    this.ownerId = '',
     required this.apartmentId,
     required this.apartmentTitle,
     required this.location,
@@ -86,6 +90,8 @@ class Stay {
   Stay ended(DateTime at) => Stay(
         id: id,
         renterId: renterId,
+        renterName: renterName,
+        ownerId: ownerId,
         apartmentId: apartmentId,
         apartmentTitle: apartmentTitle,
         location: location,

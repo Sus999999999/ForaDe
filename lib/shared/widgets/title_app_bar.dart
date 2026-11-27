@@ -5,11 +5,13 @@ import '../../core/theme/app_colors.dart';
 /// Barra superior del diseño: flecha "<" y título serif alineado a la izquierda.
 class TitleAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
+  final Widget? titleWidget;
   final PreferredSizeWidget? bottom;
   final List<Widget>? actions;
   const TitleAppBar({
     super.key,
     required this.title,
+    this.titleWidget,
     this.bottom,
     this.actions,
   });
@@ -26,15 +28,16 @@ class TitleAppBar extends StatelessWidget implements PreferredSizeWidget {
         color: AppColors.navy,
         onPressed: () => Navigator.of(context).maybePop(),
       ),
-      title: Text(
-        title,
-        style: const TextStyle(
-          fontFamily: AppColors.serif,
-          color: AppColors.text,
-          fontWeight: FontWeight.w700,
-          fontSize: 24,
-        ),
-      ),
+      title: titleWidget ??
+          Text(
+            title,
+            style: const TextStyle(
+              fontFamily: AppColors.serif,
+              color: AppColors.text,
+              fontWeight: FontWeight.w700,
+              fontSize: 24,
+            ),
+          ),
       centerTitle: false,
       titleSpacing: 0,
       actions: actions,

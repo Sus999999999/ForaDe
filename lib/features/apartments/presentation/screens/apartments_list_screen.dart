@@ -36,6 +36,18 @@ class _ApartmentsListScreenState extends State<ApartmentsListScreen> {
   ApartmentFilter _filter = ApartmentFilter();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final state = AppScope.read(context);
+      if (state.apartments.isEmpty) {
+        state.fetchApartmentsWithRetry();
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _search.dispose();
     super.dispose();
@@ -196,7 +208,12 @@ class _ApartmentsListScreenState extends State<ApartmentsListScreen> {
                 onPressed: () =>
                     Navigator.of(context).pushNamed(AppRoutes.apartmentForm),
               )
-            : null,
+            : OutlinedActionButton(
+                label: 'Reintentar búsqueda',
+                expand: false,
+                height: 44,
+                onPressed: () => state.fetchApartmentsWithRetry(),
+              ),
       );
     } else if (results.isEmpty) {
       body = EmptyState(

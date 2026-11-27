@@ -5,6 +5,7 @@ import '../../../../core/state/app_scope.dart';
 import '../../../../core/state/app_state.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../../shared/widgets/outlined_action_button.dart';
 import '../../../apartments/domain/models/apartment.dart';
 import '../../../apartments/presentation/widgets/apartment_card.dart';
 import '../widgets/apartment_section.dart';
@@ -27,6 +28,13 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _searchController =
         TextEditingController(text: AppScope.read(context).searchQuery);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final state = AppScope.read(context);
+      if (state.apartments.isEmpty) {
+        state.fetchApartmentsWithRetry();
+      }
+    });
   }
 
   @override
@@ -100,10 +108,16 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (results.isEmpty) {
-      return const EmptyState(
+      return EmptyState(
         icon: Icons.apartment_outlined,
         title: 'No hay departamentos para mostrar',
         message: 'Cuando haya departamentos publicados aparecerán aquí.',
+        action: OutlinedActionButton(
+          label: 'Buscar departamentos',
+          expand: false,
+          height: 44,
+          onPressed: () => state.fetchApartmentsWithRetry(),
+        ),
       );
     }
 

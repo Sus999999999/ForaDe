@@ -1,9 +1,11 @@
 -- ==============================================================================
 -- FORADE: Script DDL para Mensajería en Tiempo Real y Notificaciones (Fase 5)
 -- ==============================================================================
--- Ejecuta este script en el SQL Editor de tu panel de Supabase.
--- Habilita las tablas 'chat_conversations' y 'chat_messages',
--- configura las políticas de seguridad (RLS) y la publicación de Supabase Realtime (WebSockets).
+-- INSTRUCCIONES:
+-- 1. Ve a tu panel de Supabase: https://supabase.com/dashboard/project/bthahuwyalwmhavmvafn
+-- 2. Entra en "SQL Editor" en el menú lateral izquierdo.
+-- 3. Crea una "New Query", pega todo este script y haz clic en "RUN".
+-- ==============================================================================
 
 -- 1. Tabla de Conversaciones de Chat
 CREATE TABLE IF NOT EXISTS public.chat_conversations (
@@ -13,10 +15,18 @@ CREATE TABLE IF NOT EXISTS public.chat_conversations (
     owner_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     renter_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    -- Evitar duplicar una conversación sobre el mismo departamento entre el mismo rentador y rentero
-    CONSTRAINT unique_apartment_renter UNIQUE (apartment_id, renter_id)
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Asegurar la restricción única para evitar conversaciones duplicadas del mismo depto entre los mismos usuarios
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'unique_apartment_renter'
+    ) THEN
+        ALTER TABLE public.chat_conversations ADD CONSTRAINT unique_apartment_renter UNIQUE (apartment_id, renter_id);
+    END IF;
+END $$;
 
 -- 2. Tabla de Mensajes
 CREATE TABLE IF NOT EXISTS public.chat_messages (
@@ -42,27 +52,32 @@ ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Los participantes pueden ver sus conversaciones" ON public.chat_conversations;
 CREATE POLICY "Los participantes pueden ver sus conversaciones"
 ON public.chat_conversations FOR SELECT
+TO authenticated
 USING (auth.uid() = owner_id OR auth.uid() = renter_id);
 
 DROP POLICY IF EXISTS "Los usuarios autenticados pueden crear conversaciones" ON public.chat_conversations;
 CREATE POLICY "Los usuarios autenticados pueden crear conversaciones"
 ON public.chat_conversations FOR INSERT
+TO authenticated
 WITH CHECK (auth.uid() = renter_id OR auth.uid() = owner_id);
 
 DROP POLICY IF EXISTS "Los participantes pueden actualizar sus conversaciones" ON public.chat_conversations;
 CREATE POLICY "Los participantes pueden actualizar sus conversaciones"
 ON public.chat_conversations FOR UPDATE
+TO authenticated
 USING (auth.uid() = owner_id OR auth.uid() = renter_id);
 
 DROP POLICY IF EXISTS "Los participantes pueden eliminar sus conversaciones" ON public.chat_conversations;
 CREATE POLICY "Los participantes pueden eliminar sus conversaciones"
 ON public.chat_conversations FOR DELETE
+TO authenticated
 USING (auth.uid() = owner_id OR auth.uid() = renter_id);
 
 -- 6. Políticas de Seguridad (RLS) para 'chat_messages'
 DROP POLICY IF EXISTS "Los participantes de la conversación pueden ver los mensajes" ON public.chat_messages;
 CREATE POLICY "Los participantes de la conversación pueden ver los mensajes"
 ON public.chat_messages FOR SELECT
+TO authenticated
 USING (
     EXISTS (
         SELECT 1 FROM public.chat_conversations c
@@ -74,6 +89,7 @@ USING (
 DROP POLICY IF EXISTS "Los participantes pueden enviar mensajes" ON public.chat_messages;
 CREATE POLICY "Los participantes pueden enviar mensajes"
 ON public.chat_messages FOR INSERT
+TO authenticated
 WITH CHECK (
     auth.uid() = sender_id AND
     EXISTS (
@@ -86,6 +102,7 @@ WITH CHECK (
 DROP POLICY IF EXISTS "Los participantes pueden borrar mensajes si la conversación se elimina" ON public.chat_messages;
 CREATE POLICY "Los participantes pueden borrar mensajes si la conversación se elimina"
 ON public.chat_messages FOR DELETE
+TO authenticated
 USING (
     EXISTS (
         SELECT 1 FROM public.chat_conversations c
@@ -110,8 +127,11 @@ CREATE TRIGGER on_chat_message_inserted
 AFTER INSERT ON public.chat_messages
 FOR EACH ROW EXECUTE FUNCTION public.handle_new_chat_message();
 
--- 8. Habilitar Supabase Realtime (WebSockets) para transmisión en vivo
--- Nota: La publicación 'supabase_realtime' ya existe por defecto en Supabase.
+-- 8. Configurar réplica completa para soporte de WebSockets con RLS
+ALTER TABLE public.chat_conversations REPLICA IDENTITY FULL;
+ALTER TABLE public.chat_messages REPLICA IDENTITY FULL;
+
+-- 9. Habilitar Supabase Realtime (WebSockets) para transmisión en vivo
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -129,7 +149,7 @@ BEGIN
     END IF;
 END $$;
 
--- 9. Columna para token de Notificaciones Push (FCM) en 'profiles'
+-- 10. Columna para token de Notificaciones Push (FCM) en 'profiles'
 DO $$
 BEGIN
     IF NOT EXISTS (

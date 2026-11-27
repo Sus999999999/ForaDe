@@ -13,7 +13,11 @@ class ChatMessage {
     required this.sentAt,
   });
 
-  factory ChatMessage.fromMap(Map<String, dynamic> map) {
+  factory ChatMessage.fromMap(dynamic rawMap) {
+    final map = rawMap is Map<String, dynamic>
+        ? rawMap
+        : (rawMap is Map ? Map<String, dynamic>.from(rawMap) : <String, dynamic>{});
+
     return ChatMessage(
       id: map['id']?.toString() ?? '',
       conversationId: map['conversation_id']?.toString() ?? '',
@@ -116,11 +120,33 @@ class ChatConversation {
   }
 
   factory ChatConversation.fromMap(
-    Map<String, dynamic> map, {
+    dynamic rawMap, {
     List<ChatMessage>? messages,
   }) {
-    final ownerData = map['owner'] as Map<String, dynamic>?;
-    final renterData = map['renter'] as Map<String, dynamic>?;
+    final map = rawMap is Map<String, dynamic>
+        ? rawMap
+        : (rawMap is Map ? Map<String, dynamic>.from(rawMap) : <String, dynamic>{});
+
+    Map<String, dynamic>? parseMap(dynamic val) {
+      if (val == null) return null;
+      if (val is Map<String, dynamic>) return val;
+      if (val is Map) return Map<String, dynamic>.from(val);
+      if (val is List && val.isNotEmpty && val.first is Map) {
+        return Map<String, dynamic>.from(val.first as Map);
+      }
+      return null;
+    }
+
+    final ownerData = parseMap(map['owner']);
+    final renterData = parseMap(map['renter']);
+
+    List<ChatMessage> parsedMessages = messages ?? [];
+    if (parsedMessages.isEmpty && map['chat_messages'] is List) {
+      parsedMessages = (map['chat_messages'] as List)
+          .map((m) => ChatMessage.fromMap(m))
+          .toList();
+      parsedMessages.sort((a, b) => a.sentAt.compareTo(b.sentAt));
+    }
 
     return ChatConversation(
       id: map['id']?.toString() ?? '',
@@ -128,17 +154,25 @@ class ChatConversation {
       apartmentTitle: (map['apartment_title'] as String?) ?? 'Departamento',
       ownerId: map['owner_id']?.toString() ?? '',
       renterId: map['renter_id']?.toString() ?? '',
-      ownerName: (ownerData?['name'] as String?) ?? 'Propietario',
-      renterName: (renterData?['name'] as String?) ?? 'Rentador',
-      ownerAvatarUrl: (ownerData?['avatar_url'] as String?) ?? '',
-      renterAvatarUrl: (renterData?['avatar_url'] as String?) ?? '',
+      ownerName: (ownerData?['name'] as String?) ??
+          (map['owner_name'] as String?) ??
+          'Propietario',
+      renterName: (renterData?['name'] as String?) ??
+          (map['renter_name'] as String?) ??
+          'Rentador',
+      ownerAvatarUrl: (ownerData?['avatar_url'] as String?) ??
+          (map['owner_avatar_url'] as String?) ??
+          '',
+      renterAvatarUrl: (renterData?['avatar_url'] as String?) ??
+          (map['renter_avatar_url'] as String?) ??
+          '',
       createdAt: map['created_at'] != null
           ? DateTime.tryParse(map['created_at'].toString())?.toLocal() ?? DateTime.now()
           : DateTime.now(),
       updatedAt: map['updated_at'] != null
           ? DateTime.tryParse(map['updated_at'].toString())?.toLocal() ?? DateTime.now()
           : DateTime.now(),
-      messages: messages ?? [],
+      messages: parsedMessages,
     );
   }
 

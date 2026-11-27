@@ -138,7 +138,7 @@ class AppState extends ChangeNotifier {
           _currentUser = profile;
         }
       }
-      final remoteApts = await SupabaseService.instance.fetchApartments();
+      final remoteApts = await SupabaseService.instance.fetchApartmentsWithRetry();
       if (remoteApts.isNotEmpty) {
         _apartments
           ..clear()
@@ -148,11 +148,38 @@ class AppState extends ChangeNotifier {
       if (_currentUser != null) {
         await _loadFavoritesFromSupabase();
         await _loadChatsFromSupabase();
+        await _loadStaysFromSupabase();
       }
       await autoRestoreLocation();
       notifyListeners();
     } catch (_) {}
   }
+
+  /// Busca departamentos en Supabase nuevamente si no se encuentra ninguno,
+  /// con un límite de [maxRetries] reintentos (por defecto 5).
+  Future<List<Apartment>> fetchApartmentsWithRetry({
+    int maxRetries = 5,
+    Duration delay = const Duration(milliseconds: 600),
+  }) async {
+    final remoteApts = await SupabaseService.instance.fetchApartmentsWithRetry(
+      maxRetries: maxRetries,
+      delay: delay,
+    );
+    if (remoteApts.isNotEmpty) {
+      _apartments
+        ..clear()
+        ..addAll(remoteApts);
+      notifyListeners();
+    }
+    return List.unmodifiable(_apartments);
+  }
+
+  /// Alias de [fetchApartmentsWithRetry] para buscar departamentos con reintentos si no hay ninguno.
+  Future<List<Apartment>> buscarDepartamentosConReintentos({
+    int maxRetries = 5,
+    Duration delay = const Duration(milliseconds: 600),
+  }) =>
+      fetchApartmentsWithRetry(maxRetries: maxRetries, delay: delay);
 
   /// Recarga departamentos y usuarios de Supabase para la vista de administración.
   Future<void> refreshAdminData() async {
@@ -210,7 +237,7 @@ class AppState extends ChangeNotifier {
         _currentUser = profile;
         _resetSession();
         // Cargar departamentos actualizados desde Supabase
-        final remoteApts = await SupabaseService.instance.fetchApartments();
+        final remoteApts = await SupabaseService.instance.fetchApartmentsWithRetry();
         if (remoteApts.isNotEmpty) {
           _apartments
             ..clear()
@@ -219,6 +246,7 @@ class AppState extends ChangeNotifier {
         await fetchRemoteProfiles();
         await _loadFavoritesFromSupabase();
         await _loadChatsFromSupabase();
+        await _loadStaysFromSupabase();
         await autoRestoreLocation();
         notifyListeners();
         return null;
@@ -257,7 +285,7 @@ class AppState extends ChangeNotifier {
     _currentUser = user;
     _resetSession();
     // Cargar departamentos y usuarios remotos para el admin
-    final remoteApts = await SupabaseService.instance.fetchApartments();
+    final remoteApts = await SupabaseService.instance.fetchApartmentsWithRetry();
     if (remoteApts.isNotEmpty) {
       _apartments
         ..clear()
@@ -266,6 +294,7 @@ class AppState extends ChangeNotifier {
     await fetchRemoteProfiles();
     await _loadFavoritesFromSupabase();
     await _loadChatsFromSupabase();
+    await _loadStaysFromSupabase();
     await autoRestoreLocation();
     notifyListeners();
     return null;
@@ -316,6 +345,12 @@ class AppState extends ChangeNotifier {
     }
 
     _resetSession();
+    // Cargar departamentos con reintentos si no se encuentra ninguno al crear la cuenta
+    await fetchApartmentsWithRetry();
+    await fetchRemoteProfiles();
+    await _loadFavoritesFromSupabase();
+    await _loadChatsFromSupabase();
+    await _loadStaysFromSupabase();
     await autoRestoreLocation();
     notifyListeners();
     return null;
@@ -724,7 +759,6 @@ class AppState extends ChangeNotifier {
 
     var status = updated.status;
     if (current!.isInactive) status = ApartmentStatus.inactivo;
-    if (activeStayOf(current.id) != null) status = ApartmentStatus.ocupado;
 
     final updatedApt = current.copyWith(
       title: updated.title.trim(),
@@ -742,17 +776,13 @@ class AppState extends ChangeNotifier {
   }
 
   /// Marca como Disponible, Ocupado o No disponible (o Inactivo). Solo el
-  /// publicador. Mientras haya una renta en curso el estado es Ocupado y solo
-  /// cambia al finalizar la renta.
+  /// publicador.
   String? setApartmentStatus(String id, ApartmentStatus status) {
     final i = _apartments.indexWhere((a) => a.id == id);
     final current = i < 0 ? null : _apartments[i];
     final denied = _requireOwner(current);
     if (denied != null) return denied;
 
-    if (activeStayOf(id) != null && status != ApartmentStatus.ocupado) {
-      return 'Tiene una renta en curso. Finalízala desde el chat antes de cambiar su estado.';
-    }
     if (current!.status == status) return null;
     _apartments[i] = current.copyWith(status: status);
     notifyListeners();
@@ -786,7 +816,18 @@ class AppState extends ChangeNotifier {
   // Historial de estancias
   // ------------------------------------------------------------------
   /// Estancias del usuario actual (la más reciente primero).
-  List<Stay> get myStays => staysOf(_currentUser?.id ?? '');
+  List<Stay> get myStays {
+    final me = _currentUser;
+    if (me == null) return const [];
+    if (me.role == UserRole.rentero) {
+      final list = _stays
+          .where((s) => s.ownerId == me.id || s.renterId == me.id)
+          .toList()
+        ..sort((a, b) => b.startDate.compareTo(a.startDate));
+      return list;
+    }
+    return staysOf(me.id);
+  }
 
   List<Stay> staysOf(String renterId) {
     final list = _stays.where((s) => s.renterId == renterId).toList()
@@ -794,63 +835,133 @@ class AppState extends ChangeNotifier {
     return list;
   }
 
-  /// Estancia en curso del departamento (de cualquier rentador), si hay.
-  Stay? activeStayOf(String apartmentId) {
+  /// Estancia en curso del departamento.
+  /// Si se especifica [renterId], busca la estancia activa de ese rentador en particular.
+  Stay? activeStayOf(String apartmentId, {String? renterId}) {
     for (final s in _stays) {
-      if (s.apartmentId == apartmentId && s.isActive) return s;
+      if (s.apartmentId == apartmentId && s.isActive) {
+        if (renterId == null || s.renterId == renterId) return s;
+      }
     }
     return null;
   }
 
-  /// El rentero registra que [renterId] empezó a rentar su departamento.
-  /// El departamento pasa a "Ocupado". Devuelve false si no procede.
-  bool registerStay({required Apartment apartment, required String renterId}) {
-    final user = _currentUser;
-    final renter = userById(renterId);
-    final fresh = apartmentById(apartment.id);
-    if (user == null || fresh == null || !canPublish) return false;
-    if (fresh.ownerId != user.id || fresh.isInactive) return false;
-    if (renter == null || renter.role != UserRole.rentador) return false;
-    if (activeStayOf(fresh.id) != null) return false;
+  /// Todas las estancias activas de un departamento.
+  List<Stay> activeStaysOf(String apartmentId) {
+    return _stays.where((s) => s.apartmentId == apartmentId && s.isActive).toList();
+  }
 
-    _stays.add(Stay(
-      id: 'stay-${DateTime.now().microsecondsSinceEpoch}',
+  /// Indica si un rentador específico tiene una estancia activa en el departamento.
+  bool hasActiveStay({required String apartmentId, required String renterId}) {
+    return _stays.any((s) =>
+        s.apartmentId == apartmentId && s.renterId == renterId && s.isActive);
+  }
+
+  /// Registra que [renterId] empezó a rentar el departamento.
+  /// Solo el dueño del departamento (o administrador) puede aceptar la renta.
+  /// Los departamentos pueden tener más de 1 renta simultánea.
+  /// No bloquea ni fuerza el estado a "Ocupado". Devuelve false si no procede.
+  bool registerStay({
+    required Apartment apartment,
+    required String renterId,
+    String renterName = '',
+  }) {
+    final user = _currentUser;
+    final fresh = apartmentById(apartment.id) ?? apartment;
+    if (user == null || fresh.isInactive) return false;
+
+    // Solo el dueño del departamento (o administrador) puede aceptar la renta.
+    final isOwner = fresh.ownerId == user.id || user.role == UserRole.administrador;
+    if (!isOwner) return false;
+
+    // Solo se valida que este rentador en particular no tenga ya una renta activa en el departamento.
+    if (hasActiveStay(apartmentId: fresh.id, renterId: renterId)) return false;
+
+    final renter = userById(renterId);
+    final resolvedRenterName = renter?.name.isNotEmpty == true
+        ? renter!.name
+        : (renterName.isNotEmpty ? renterName : 'Inquilino');
+
+    final startDate = DateTime.now();
+    final newStay = Stay(
+      id: 'stay-${startDate.microsecondsSinceEpoch}',
       renterId: renterId,
+      renterName: resolvedRenterName,
+      ownerId: fresh.ownerId,
       apartmentId: fresh.id,
       apartmentTitle: fresh.title,
       location: fresh.location,
       hostName: fresh.hostName,
       monthlyPrice: fresh.price,
-      startDate: DateTime.now(),
-    ));
-    final i = _apartments.indexWhere((a) => a.id == fresh.id);
-    _apartments[i] = fresh.copyWith(status: ApartmentStatus.ocupado);
+      startDate: startDate,
+    );
+    _stays.add(newStay);
     notifyListeners();
+
+    // Persistir en Supabase y reemplazar el ID local con el UUID real
+    SupabaseService.instance.insertStay(newStay).then((uuid) {
+      if (uuid != null) {
+        final idx = _stays.indexWhere((s) => s.id == newStay.id);
+        if (idx >= 0) {
+          _stays[idx] = Stay(
+            id: uuid,
+            renterId: newStay.renterId,
+            renterName: newStay.renterName,
+            ownerId: newStay.ownerId,
+            apartmentId: newStay.apartmentId,
+            apartmentTitle: newStay.apartmentTitle,
+            location: newStay.location,
+            hostName: newStay.hostName,
+            monthlyPrice: newStay.monthlyPrice,
+            startDate: newStay.startDate,
+          );
+          notifyListeners();
+        }
+      }
+    });
+
     NotificationService.instance.notifyStayConfirmed(
       apartmentTitle: fresh.title,
-      tenantName: renter.name,
+      tenantName: resolvedRenterName,
     );
     return true;
   }
 
-  /// El rentero da por terminada la estancia en curso del departamento.
-  /// El departamento vuelve a estar Disponible.
-  bool endStay(String apartmentId) {
+  /// Da por terminada la estancia en curso del departamento para un rentador.
+  /// Puede ser cancelada/finalizada tanto por el dueño (rentero) como por el rentador.
+  bool endStay(String apartmentId, {String? renterId}) {
     final user = _currentUser;
     final apt = apartmentById(apartmentId);
-    final i = _stays.indexWhere((s) => s.apartmentId == apartmentId && s.isActive);
-    if (user == null || apt == null || apt.ownerId != user.id || i < 0) {
+    final i = _stays.indexWhere((s) =>
+        s.apartmentId == apartmentId &&
+        (renterId == null || s.renterId == renterId) &&
+        s.isActive);
+    if (user == null || apt == null || i < 0) {
       return false;
     }
-    _stays[i] = _stays[i].ended(DateTime.now());
-    final j = _apartments.indexWhere((a) => a.id == apartmentId);
-    _apartments[j] = apt.copyWith(status: ApartmentStatus.disponible);
+    final stay = _stays[i];
+    final isOwner = apt.ownerId == user.id || user.role == UserRole.administrador;
+    final isRenter = stay.renterId == user.id;
+    if (!isOwner && !isRenter) {
+      return false;
+    }
+
+    _stays[i] = stay.ended(DateTime.now());
     notifyListeners();
     NotificationService.instance.notifyStayEnded(
       apartmentTitle: apt.title,
     );
+
+    // Persistir en Supabase
+    final endedAt = _stays[i].endDate!;
+    SupabaseService.instance.endStayInSupabase(stay.id, endedAt);
+
     return true;
   }
+
+  /// Alias de [endStay] para cancelar la renta.
+  bool cancelRent(String apartmentId, {String? renterId}) =>
+      endStay(apartmentId, renterId: renterId);
 
   // ------------------------------------------------------------------
   // Contactos / chat
@@ -862,9 +973,43 @@ class AppState extends ChangeNotifier {
     try {
       final remoteChats = await SupabaseService.instance.fetchConversations();
       if (remoteChats.isNotEmpty) {
-        _chats
+        for (final rc in remoteChats) {
+          final idx = _chats.indexWhere((c) =>
+              c.id == rc.id ||
+              (c.apartmentId == rc.apartmentId && c.renterId == rc.renterId));
+          if (idx >= 0) {
+            // Preservar mensajes locales que aún no estén en el servidor
+            final existingMessages = _chats[idx].messages;
+            final mergedMessages = <ChatMessage>[...rc.messages];
+            for (final em in existingMessages) {
+              final exists = mergedMessages.any((m) =>
+                  m.id == em.id ||
+                  (m.text == em.text &&
+                      m.senderId == em.senderId &&
+                      m.sentAt.difference(em.sentAt).abs().inSeconds < 5));
+              if (!exists) {
+                mergedMessages.add(em);
+              }
+            }
+            mergedMessages.sort((a, b) => a.sentAt.compareTo(b.sentAt));
+            _chats[idx] = rc.copyWith(messages: mergedMessages);
+          } else {
+            _chats.add(rc);
+          }
+        }
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadStaysFromSupabase() async {
+    if (_currentUser == null) return;
+    try {
+      final remote = await SupabaseService.instance.fetchStays();
+      if (remote.isNotEmpty) {
+        _stays
           ..clear()
-          ..addAll(remoteChats);
+          ..addAll(remote);
         notifyListeners();
       }
     } catch (_) {}
@@ -918,13 +1063,18 @@ class AppState extends ChangeNotifier {
     final user = _currentUser;
     if (user == null || !canChat || a.ownerId == user.id) return null;
     final existing = chatFor(a);
-    if (existing != null) return existing;
+    if (existing != null && SupabaseService.instance.isUuid(existing.id)) {
+      return existing;
+    }
+
     final fresh = apartmentById(a.id);
     if (fresh == null || !fresh.isAvailable) return null;
 
     final remote = await SupabaseService.instance.openOrCreateConversation(apartment: fresh);
     if (remote != null) {
-      final idx = _chats.indexWhere((c) => c.id == remote.id);
+      final idx = _chats.indexWhere((c) =>
+          c.id == remote.id ||
+          (c.apartmentId == remote.apartmentId && c.renterId == remote.renterId));
       if (idx >= 0) {
         _chats[idx] = remote;
       } else {
@@ -933,6 +1083,8 @@ class AppState extends ChangeNotifier {
       notifyListeners();
       return remote;
     }
+
+    if (existing != null) return existing;
 
     final chat = ChatConversation(
       id: 'chat-${DateTime.now().microsecondsSinceEpoch}',
@@ -967,15 +1119,40 @@ class AppState extends ChangeNotifier {
     chat.messages.add(localMsg);
     notifyListeners();
 
-    final remoteMsg = await SupabaseService.instance.sendMessage(
-      conversationId: chatId,
-      text: body,
-    );
+    String targetChatId = chatId;
 
-    if (remoteMsg != null) {
-      final idx = chat.messages.indexWhere((m) => m.id == localMsg.id);
-      if (idx >= 0) {
-        chat.messages[idx] = remoteMsg;
+    // Si la conversación tiene un ID temporal no UUID, intentar asegurar
+    // primero la conversación remota en Supabase
+    if (!SupabaseService.instance.isUuid(targetChatId)) {
+      final apt = apartmentById(chat.apartmentId);
+      if (apt != null) {
+        final remoteChat = await SupabaseService.instance.openOrCreateConversation(apartment: apt);
+        if (remoteChat != null && SupabaseService.instance.isUuid(remoteChat.id)) {
+          final oldId = chat.id;
+          targetChatId = remoteChat.id;
+          final idx = _chats.indexWhere((c) => c.id == oldId);
+          if (idx >= 0) {
+            _chats[idx] = chat.copyWith(id: targetChatId);
+          }
+          notifyListeners();
+        }
+      }
+    }
+
+    if (SupabaseService.instance.isUuid(targetChatId)) {
+      final remoteMsg = await SupabaseService.instance.sendMessage(
+        conversationId: targetChatId,
+        text: body,
+      );
+
+      if (remoteMsg != null) {
+        final currentChat = chatById(targetChatId) ?? chat;
+        final idx = currentChat.messages.indexWhere((m) => m.id == localMsg.id);
+        if (idx >= 0) {
+          currentChat.messages[idx] = remoteMsg;
+        } else if (!currentChat.messages.any((m) => m.id == remoteMsg.id)) {
+          currentChat.messages.add(remoteMsg);
+        }
         notifyListeners();
       }
     }

@@ -19,8 +19,25 @@ import '../widgets/dashboard_widgets.dart';
 
 /// Pantalla de entrada tras iniciar sesión. Cambia según el tipo de usuario:
 /// quien busca, quien publica o el administrador.
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final state = AppScope.read(context);
+      if (state.apartments.isEmpty) {
+        state.fetchApartmentsWithRetry();
+      }
+    });
+  }
 
   void _openMenu(BuildContext context) {
     Navigator.of(context).push(

@@ -38,6 +38,7 @@ List<MenuItemData> menuItemsFor(UserRole? role) {
       map,
       favorites,
       messages,
+      stayHistory,
       profile,
       settings,
     ];

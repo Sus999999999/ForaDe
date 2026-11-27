@@ -48,7 +48,7 @@ class AppRoutes {
   static const profile = '/profile';
   static const editProfile = '/edit-profile';
   static const settings = '/settings';
-  static const stayHistory = '/stay-history'; // solo rentador
+  static const stayHistory = '/stay-history'; // rentador y rentero
 
   // Administración de cuentas
   static const admin = '/admin';
@@ -101,7 +101,7 @@ class AppRoutes {
             _chatUsers, ContactScreen(apartment: s.arguments as Apartment)));
       case stayHistory:
         return page(
-            guard(const {UserRole.rentador}, const StayHistoryScreen()));
+            guard(const {UserRole.rentador, UserRole.rentero}, const StayHistoryScreen()));
 
       case profile:
         return page(guard(_anyUser, const ProfileScreen()));
