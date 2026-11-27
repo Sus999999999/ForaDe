@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'supabase_service.dart';
 
 enum NotificationType {
@@ -27,8 +30,20 @@ class AppNotification {
   });
 }
 
+/// Manejador de notificaciones en segundo plano o cuando la aplicación está cerrada.
+/// Debe ser una función de nivel superior con la anotación @pragma('vm:entry-point').
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  try {
+    await Firebase.initializeApp();
+    debugPrint('📩 [FCM Background] Notificación recibida con app cerrada: ${message.messageId}');
+  } catch (e) {
+    debugPrint('⚠️ [FCM Background] Error en background handler: $e');
+  }
+}
+
 /// Servicio centralizado de Notificaciones en Tiempo Real y Push (FCM).
-/// Administra notificaciones en primer plano (in-app banners) y segundo plano (FCM).
+/// Administra notificaciones en primer plano (in-app banners) y segundo plano (FCM con app cerrada).
 class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
@@ -38,17 +53,153 @@ class NotificationService {
   /// Flujo reactivo de notificaciones para consumir en la interfaz.
   Stream<AppNotification> get onNotification => _controller.stream;
 
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
+
+  static const AndroidNotificationChannel _androidChannel =
+      AndroidNotificationChannel(
+    'forade_chat_channel',
+    'Mensajes de Forade',
+    description: 'Notificaciones prioritarias para mensajes de chat y rentas.',
+    importance: Importance.max,
+    playSound: true,
+  );
+
   String? _fcmToken;
   String? get fcmToken => _fcmToken;
 
   bool _initialized = false;
 
-  /// Inicializa los canales de notificación y escucha eventos de mensajería.
+  /// Inicializa Firebase, canales de notificación y escucha eventos de mensajería.
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
 
-    debugPrint('🔔 [NotificationService] Inicializado correctamente.');
+    try {
+      // 1. Inicializar Firebase Core
+      await Firebase.initializeApp();
+      debugPrint('🔥 [NotificationService] Firebase inicializado.');
+
+      // 2. Registrar el manejador de notificaciones en segundo plano
+      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+      // 3. Configurar canal de notificaciones locales para Android
+      const initializationSettingsAndroid =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
+      const initializationSettings = InitializationSettings(
+        android: initializationSettingsAndroid,
+      );
+      await _localNotifications.initialize(
+        initializationSettings,
+        onDidReceiveNotificationResponse: (response) {
+          debugPrint('👆 [NotificationService] Toque en notificación local: ${response.payload}');
+        },
+      );
+
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(_androidChannel);
+
+      // 4. Solicitar permisos de notificación (Android 13+ y iOS)
+      final messaging = FirebaseMessaging.instance;
+      final settings = await messaging.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true,
+      );
+      debugPrint('🔔 [NotificationService] Estado de permisos: ${settings.authorizationStatus}');
+
+      // 5. Configurar presentación de notificaciones en primer plano
+      await messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      // 6. Obtener token FCM del dispositivo
+      try {
+        _fcmToken = await messaging.getToken();
+        if (_fcmToken != null && _fcmToken!.isNotEmpty) {
+          debugPrint('📱 [NotificationService] FCM Token obtenido: $_fcmToken');
+          await SupabaseService.instance.saveFcmToken(_fcmToken!);
+        }
+      } catch (tokenErr) {
+        debugPrint('⚠️ [NotificationService] No se pudo obtener token FCM: $tokenErr');
+      }
+
+      // 7. Escuchar cambios de token FCM
+      messaging.onTokenRefresh.listen((newToken) {
+        _fcmToken = newToken;
+        debugPrint('🔄 [NotificationService] FCM Token renovado: $newToken');
+        SupabaseService.instance.saveFcmToken(newToken);
+      });
+
+      // 8. Escuchar mensajes mientras la aplicación está ABIERTA en primer plano
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        debugPrint('📩 [NotificationService] Mensaje recibido en primer plano: ${message.data}');
+        final notification = message.notification;
+        final title = notification?.title ?? message.data['title'] ?? 'Nuevo mensaje';
+        final body = notification?.body ?? message.data['body'] ?? message.data['text'] ?? '';
+        final convId = message.data['conversation_id'] ?? message.data['conversationId'] ?? '';
+
+        // Disparar notificación visual local en la barra de Android
+        _localNotifications.show(
+          message.hashCode,
+          title,
+          body,
+          NotificationDetails(
+            android: AndroidNotificationDetails(
+              _androidChannel.id,
+              _androidChannel.name,
+              channelDescription: _androidChannel.description,
+              icon: '@mipmap/ic_launcher',
+              importance: Importance.max,
+              priority: Priority.high,
+              playSound: true,
+            ),
+          ),
+          payload: convId,
+        );
+
+        // Emitir notificación in-app (banner flotante dentro de la app)
+        notifyNewChatMessage(
+          senderName: title,
+          message: body,
+          conversationId: convId,
+        );
+      });
+
+      // 9. Manejar cuando el usuario toca la notificación y abre la app
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        debugPrint('🚀 [NotificationService] App abierta por notificación: ${message.data}');
+      });
+
+      debugPrint('🔔 [NotificationService] Inicializado correctamente.');
+    } catch (e) {
+      debugPrint('⚠️ [NotificationService] Error al inicializar notificaciones: $e');
+    }
+  }
+
+  /// Sincroniza el token FCM con la cuenta del usuario actual autenticado.
+  Future<void> syncTokenWithCurrentUser() async {
+    try {
+      if (_fcmToken != null && _fcmToken!.isNotEmpty) {
+        await SupabaseService.instance.saveFcmToken(_fcmToken!);
+      } else {
+        final token = await FirebaseMessaging.instance.getToken();
+        if (token != null && token.isNotEmpty) {
+          _fcmToken = token;
+          await SupabaseService.instance.saveFcmToken(token);
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ [NotificationService] Error al sincronizar FCM Token con usuario: $e');
+    }
   }
 
   /// Registra el token de dispositivo (FCM) y lo sincroniza con la base de datos de Supabase.

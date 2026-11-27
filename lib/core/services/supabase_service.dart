@@ -590,11 +590,64 @@ class SupabaseService {
         debugPrint('⚠️ No se pudo actualizar updated_at de la conversación: $e');
       }
 
+      // Intentar disparar push en segundo plano para el destinatario
+      _triggerPushNotification(
+        conversationId: conversationId,
+        senderId: user.id,
+        text: body,
+      );
+
       return ChatMessage.fromMap(res);
     } catch (e) {
       debugPrint('❌ Error al enviar mensaje en Supabase: $e');
       return null;
     }
+  }
+
+  /// Dispara la función de notificaciones push de Supabase hacia Firebase
+  Future<void> _triggerPushNotification({
+    required String conversationId,
+    required String senderId,
+    required String text,
+  }) async {
+    try {
+      await _client.functions.invoke('chat-push-notification', body: {
+        'record': {
+          'conversation_id': conversationId,
+          'sender_id': senderId,
+          'text': text,
+        },
+      });
+    } catch (e) {
+      debugPrint('ℹ️ [PushNotification] Invocación de Edge Function: $e');
+    }
+  }
+
+  RealtimeChannel? _globalMessagesChannel;
+
+  /// Suscripción global a nuevos mensajes recibidos para disparar notificaciones in-app.
+  void subscribeGlobalIncomingMessages(
+    void Function(String senderId, String text, String convId) onMessage,
+  ) {
+    _globalMessagesChannel?.unsubscribe();
+    _globalMessagesChannel = _client
+        .channel('global:chat_messages')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'chat_messages',
+          callback: (payload) {
+            final record = payload.newRecord;
+            final senderId = record['sender_id']?.toString() ?? '';
+            final text = record['text']?.toString() ?? '';
+            final convId = record['conversation_id']?.toString() ?? '';
+            final myId = currentUser?.id;
+            if (senderId.isNotEmpty && senderId != myId) {
+              onMessage(senderId, text, convId);
+            }
+          },
+        )
+        .subscribe();
   }
 
   /// Abre una conversación existente o crea una nueva con el rentero.

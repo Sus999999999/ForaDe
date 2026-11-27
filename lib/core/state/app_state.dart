@@ -149,6 +149,9 @@ class AppState extends ChangeNotifier {
         await _loadFavoritesFromSupabase();
         await _loadChatsFromSupabase();
         await _loadStaysFromSupabase();
+        NotificationService.instance.syncTokenWithCurrentUser();
+        _startGlobalChatListener();
+        _startGlobalChatListener();
       }
       await autoRestoreLocation();
       notifyListeners();
@@ -247,6 +250,8 @@ class AppState extends ChangeNotifier {
         await _loadFavoritesFromSupabase();
         await _loadChatsFromSupabase();
         await _loadStaysFromSupabase();
+        NotificationService.instance.syncTokenWithCurrentUser();
+        _startGlobalChatListener();
         await autoRestoreLocation();
         notifyListeners();
         return null;
@@ -1018,6 +1023,19 @@ class AppState extends ChangeNotifier {
   Future<void> refreshChats() async {
     await _loadChatsFromSupabase();
     notifyListeners();
+  }
+
+  void _startGlobalChatListener() {
+    SupabaseService.instance.subscribeGlobalIncomingMessages((senderId, text, convId) {
+      final sender = userById(senderId);
+      final senderName = sender?.name ?? 'Nuevo mensaje';
+      NotificationService.instance.notifyNewChatMessage(
+        senderName: senderName,
+        message: text,
+        conversationId: convId,
+      );
+      refreshChats();
+    });
   }
 
   /// Conversaciones del usuario actual (la más reciente primero).

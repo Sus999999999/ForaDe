@@ -48,5 +48,8 @@ app.*.map.json
 .widget_preview/
 
 # Documentos internos de seguimiento
+*firebase-adminsdk*.json
+*service-account*.json
+android/app/google-services.json
 plan_de_implementacion.txt
 PLAN_DE_IMPLEMENTACION.txt
